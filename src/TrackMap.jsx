@@ -24,7 +24,7 @@ function sectorSegments(lap) {
 
 // Desenha o traçado da melhor volta (ou o rasto da volta atual enquanto não há nenhuma),
 // a linha de partida e a posição do carro. Com `lap`, mostra essa volta colorida por setor.
-export default function TrackMap({ map, pos, lapNumber, lap }) {
+export default function TrackMap({ map, pos, lapNumber, lap, ghost }) {
   const canvasRef = useRef(null);
   const trailRef = useRef([]);
 
@@ -108,8 +108,18 @@ export default function TrackMap({ map, pos, lapNumber, lap }) {
       ctx.textAlign = "left";
       ctx.fillText("START", sx + 10, sy + 4);
     }
+    if (ghost && !lap) {
+      // Fantasma do recorde: ponto roxo com anel, e a distância até ele.
+      dot(ghost, "#0d0d0d", 8);
+      dot(ghost, "#b57bff", 6);
+      const [gx, gy] = proj(ghost);
+      ctx.fillStyle = "#b57bff";
+      ctx.font = "bold 12px system-ui";
+      ctx.textAlign = "left";
+      ctx.fillText(`REC ${ghost.gapM > 0 ? "+" : ""}${ghost.gapM} m`, gx + 10, gy - 8);
+    }
     if (pos && !lap) dot(pos, "#fff", 6);
-  }, [map, pos, lapNumber, lap]);
+  }, [map, pos, lapNumber, lap, ghost]);
 
   return <canvas ref={canvasRef} width={W} height={H} className="map" />;
 }

@@ -329,6 +329,27 @@ export class LapTimer {
     return this.currentMs - refMs;
   }
 
+  // Fantasma: onde estaria o carro do recorde com o mesmo tempo de volta.
+  ghost() {
+    const ref = this.ref;
+    if (!this.running || !ref?.samples?.length || !ref.path?.length) return null;
+    const samples = ref.samples;
+    if (this.currentMs >= samples[samples.length - 1][1]) return null;
+    // Distância do recorde neste instante (as amostras estão ordenadas por tempo).
+    let lo = 0;
+    let hi = samples.length - 1;
+    while (hi - lo > 1) {
+      const mid = (lo + hi) >> 1;
+      if (samples[mid][1] <= this.currentMs) lo = mid;
+      else hi = mid;
+    }
+    const [d0, t0] = samples[lo];
+    const [d1, t1] = samples[hi];
+    const dist = t1 === t0 ? d0 : d0 + ((this.currentMs - t0) / (t1 - t0)) * (d1 - d0);
+    const pos = pointAtDistance(ref, dist);
+    return pos && { ...pos, gapM: Math.round(dist - this.lapDist) };
+  }
+
   snapshot() {
     const b = this.bestSectors;
     return {
@@ -341,6 +362,7 @@ export class LapTimer {
       lapNumber: this.lapNumber,
       currentMs: this.currentMs,
       deltaMs: this.deltaMs(),
+      ghost: this.ghost(),
       lastLapMs: this.lastLapMs,
       sessionBestMs: this.sessionBestMs,
       recordMs: this.ref?.ms ?? null,
@@ -367,6 +389,32 @@ export class LapTimer {
   mapData() {
     return { start: this.start, refPath: this.ref?.path ?? this.trackPath, sectors: this.sectors, mapVersion: this.mapVersion };
   }
+}
+
+// Ponto do traçado do recorde à distância d (comprimentos acumulados guardados em cache).
+const cumCache = new WeakMap();
+function pointAtDistance(ref, d) {
+  const path = ref.path;
+  let cum = cumCache.get(ref);
+  if (!cum) {
+    cum = [0];
+    for (let i = 1; i < path.length; i++) {
+      cum.push(cum[i - 1] + Math.hypot(path[i].x - path[i - 1].x, path[i].z - path[i - 1].z));
+    }
+    cumCache.set(ref, cum);
+  }
+  if (d <= 0) return { x: path[0].x, z: path[0].z };
+  let lo = 1;
+  let hi = cum.length - 1;
+  if (d >= cum[hi]) return { x: path[hi].x, z: path[hi].z };
+  while (lo < hi) {
+    const mid = (lo + hi) >> 1;
+    if (cum[mid] < d) lo = mid + 1;
+    else hi = mid;
+  }
+  const i = lo;
+  const f = (d - cum[i - 1]) / (cum[i] - cum[i - 1] || 1);
+  return { x: path[i - 1].x + (path[i].x - path[i - 1].x) * f, z: path[i - 1].z + (path[i].z - path[i - 1].z) * f };
 }
 
 function minOrNull(a, b) {

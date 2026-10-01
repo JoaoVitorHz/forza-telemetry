@@ -4,6 +4,7 @@ export const DEFAULT_SETTINGS = {
   showPedals: true,
   showLapHistory: true,
   compareChart: true,
+  ghost: true,
   overlaySectors: true,
   overlayMap: false,
   overlayOpacity: 80,

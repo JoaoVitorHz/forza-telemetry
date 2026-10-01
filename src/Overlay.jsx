@@ -47,7 +47,9 @@ export default function Overlay() {
             <b className="best">{fmtTime(timer?.recordMs)}</b>
           </div>
           {settings.overlaySectors && <Sectors sectors={timer?.sectors} compact />}
-          {settings.overlayMap && <TrackMap map={map} pos={t} lapNumber={timer?.lapNumber} />}
+          {settings.overlayMap && (
+            <TrackMap map={map} pos={t} lapNumber={timer?.lapNumber} ghost={settings.ghost ? timer?.ghost : null} />
+          )}
         </>
       )}
     </div>

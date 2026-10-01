@@ -18,6 +18,12 @@ export const SETTINGS_GROUPS = [
         label: "Gráfico de comparação",
         desc: "Ao escolher uma volta, compara delta, velocidade, acelerador e travão com o recorde ao longo da pista.",
       },
+      {
+        key: "ghost",
+        type: "bool",
+        label: "Fantasma no mapa",
+        desc: "Ponto roxo que mostra onde estaria o carro do recorde neste momento, e a distância até ele.",
+      },
     ],
   },
   {

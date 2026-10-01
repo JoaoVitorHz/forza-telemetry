@@ -187,7 +187,13 @@ export default function App() {
             <h2>{viewedLap ? `MAPA • VOLTA ${viewedLap.n} • ${fmtTime(viewedLap.ms)}` : "MAPA"}</h2>
             {selectedLap != null && <button onClick={() => setSelectedLap(null)}>Ao vivo</button>}
           </div>
-          <TrackMap map={map} pos={t} lapNumber={timer?.lapNumber} lap={viewedLap} />
+          <TrackMap
+            map={map}
+            pos={t}
+            lapNumber={timer?.lapNumber}
+            lap={viewedLap}
+            ghost={settings.ghost ? timer?.ghost : null}
+          />
           {viewedLap && settings.compareChart && <CompareChart lap={viewedLap} label={`Volta ${viewedLap.n}`} />}
           <Tracks tracks={tracks} timer={timer} send={send} />
         </section>
