@@ -5,6 +5,7 @@ import Tracks from "./Tracks.jsx";
 import Sectors from "./Sectors.jsx";
 import LapHistory from "./LapHistory.jsx";
 import TrackView from "./TrackView.jsx";
+import Settings from "./Settings.jsx";
 import { fmtDelta, fmtTime } from "./format.js";
 import { askCarName, carLabel } from "./cars.js";
 
@@ -28,12 +29,13 @@ function Bar({ value, color }) {
 }
 
 export default function App() {
-  const { state, map, tracks, lapDetail, trackView, savedLap, carNames, online, send } = useTelemetry(WS_URL);
+  const { state, map, tracks, lapDetail, trackView, savedLap, carNames, settings, online, send } = useTelemetry(WS_URL);
   const t = state?.telemetry;
   const timer = state?.timer;
 
   // Seletor no topo: null = ao vivo; id = ver uma pista guardada.
   const [view, setView] = useState(null);
+  const [showSettings, setShowSettings] = useState(false);
   const viewExists = view != null && tracks.some((tr) => tr.id === view);
   // Pede os dados da pista ao escolher e sempre que a lista muda (nova volta, novo recorde).
   useEffect(() => {
@@ -74,7 +76,13 @@ export default function App() {
       <span className="brand">Forza Telemetry</span>
       <label>
         Pista:{" "}
-        <select value={viewExists ? view : ""} onChange={(e) => setView(e.target.value || null)}>
+        <select
+          value={viewExists ? view : ""}
+          onChange={(e) => {
+            setView(e.target.value || null);
+            setShowSettings(false);
+          }}
+        >
           <option value="">Ao vivo</option>
           {tracks.map((tr) => (
             <option key={tr.id} value={tr.id}>
@@ -84,8 +92,20 @@ export default function App() {
           ))}
         </select>
       </label>
+      <button className={showSettings ? "active" : ""} onClick={() => setShowSettings(!showSettings)}>
+        ⚙ Configurações
+      </button>
     </header>
   );
+
+  if (showSettings) {
+    return (
+      <>
+        {topbar}
+        <Settings settings={settings} send={send} />
+      </>
+    );
+  }
 
   if (viewExists) {
     return (
@@ -118,17 +138,17 @@ export default function App() {
               </button>
             </p>
           )}
-  
+
           <Row label="VOLTA" value={timer?.lapNumber || "-"} />
           <Row label="ATUAL" value={fmtTime(timer?.running ? timer.currentMs : null)} />
           <Row label="DELTA" value={fmtDelta(delta)} className={deltaClass} />
           <Row label="ÚLTIMA" value={fmtTime(timer?.lastLapMs)} />
           <Row label="MELHOR (SESSÃO)" value={fmtTime(timer?.sessionBestMs)} />
           <Row label="RECORDE" value={fmtTime(timer?.recordMs)} className="best" />
-  
+
           <Sectors sectors={timer?.sectors} />
-  
-          {t && (
+
+          {t && settings.showPedals && (
             <div className="live">
               <div className="speed">
                 <span>{Math.round(t.speedKmh)}</span> km/h
@@ -139,7 +159,7 @@ export default function App() {
               <Bar value={t.brake} color="#e74c3c" />
             </div>
           )}
-  
+
           <div className="buttons">
             <button onClick={() => send({ type: "setStart" })} disabled={!state?.receiving}>
               Definir partida
@@ -156,10 +176,10 @@ export default function App() {
               Reiniciar
             </button>
           </div>
-  
-          <LapHistory laps={timer?.laps} selected={selectedLap} onSelect={selectLap} />
+
+          {settings.showLapHistory && <LapHistory laps={timer?.laps} selected={selectedLap} onSelect={selectLap} />}
         </section>
-  
+
         <section className="panel">
           <div className="map-header">
             <h2>{viewedLap ? `MAPA • VOLTA ${viewedLap.n} • ${fmtTime(viewedLap.ms)}` : "MAPA"}</h2>

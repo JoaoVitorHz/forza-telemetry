@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { DEFAULT_SETTINGS } from "../shared/settings.js";
 
 // Liga ao servidor Node por WebSocket e volta a ligar automaticamente se cair.
 export function useTelemetry(url) {
@@ -9,6 +10,7 @@ export function useTelemetry(url) {
   const [trackView, setTrackView] = useState(null);
   const [savedLap, setSavedLap] = useState(null);
   const [carNames, setCarNames] = useState({});
+  const [settings, setSettings] = useState(DEFAULT_SETTINGS);
   const [online, setOnline] = useState(false);
   const wsRef = useRef(null);
 
@@ -34,6 +36,7 @@ export function useTelemetry(url) {
         else if (msg.type === "trackView") setTrackView(msg.view);
         else if (msg.type === "savedLap") setSavedLap(msg.lap);
         else if (msg.type === "cars") setCarNames(msg.names);
+        else if (msg.type === "settings") setSettings(msg.values);
       };
     };
     connect();
@@ -50,5 +53,5 @@ export function useTelemetry(url) {
     if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify(msg));
   }, []);
 
-  return { state, map, tracks, lapDetail, trackView, savedLap, carNames, online, send };
+  return { state, map, tracks, lapDetail, trackView, savedLap, carNames, settings, online, send };
 }

@@ -5,6 +5,7 @@ import { LapTimer, START_RADIUS } from "./lapTimer.js";
 import { TrackStore } from "./trackStore.js";
 import { appendLap, deleteLaps, readLaps } from "./lapStore.js";
 import { CarStore } from "./carStore.js";
+import { SettingsStore } from "./settingsStore.js";
 
 const UDP_PORT = Number(process.env.FORZA_PORT) || 8005;
 const WS_PORT = Number(process.env.WS_PORT) || 8080;
@@ -14,6 +15,7 @@ const DETECT_RADIUS = START_RADIUS * 2; // carrega a pista antes de chegar à pa
 const timer = new LapTimer();
 const store = new TrackStore();
 const cars = new CarStore();
+const settings = new SettingsStore();
 
 // Recorde, setores ou melhores setores mudaram numa pista guardada: grava logo no ficheiro.
 timer.onTrackUpdate = () => {
@@ -153,6 +155,7 @@ wss.on("connection", (ws) => {
   send(ws, { type: "map", ...timer.mapData() });
   send(ws, { type: "tracks", tracks: store.summary() });
   send(ws, { type: "cars", names: cars.names });
+  send(ws, { type: "settings", values: settings.values });
   ws.on("message", (raw) => {
     let msg;
     try {
@@ -164,7 +167,10 @@ wss.on("connection", (ws) => {
     else if (msg.type === "reset") timer.reset();
     else if (msg.type === "togglePause") timer.manualPause = !timer.manualPause;
     else if (msg.type === "getLap") send(ws, { type: "lap", n: msg.n, lap: timer.getLap(msg.n) });
-    else if (msg.type === "nameCar" && msg.id != null) {
+    else if (msg.type === "setSettings" && msg.patch) {
+      settings.update(msg.patch);
+      broadcast({ type: "settings", values: settings.values });
+    } else if (msg.type === "nameCar" && msg.id != null) {
       cars.setName(String(msg.id), msg.name);
       broadcast({ type: "cars", names: cars.names });
     } else if (msg.type === "getTrackView") send(ws, { type: "trackView", view: trackView(msg.id) });

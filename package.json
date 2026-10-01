@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "scripts": {
     "dev": "concurrently -n server,web -c blue,green \"npm:server\" \"npm:web\"",
-    "server": "node --watch-path=server server/index.js",
+    "server": "node --watch-path=server --watch-path=shared server/index.js",
     "web": "vite",
     "sim": "node server/simulator.js",
     "capture": "node server/capture.js",
