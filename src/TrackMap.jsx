@@ -54,11 +54,14 @@ export default function TrackMap({ map, pos, lapNumber, lap, ghost, miniColors, 
   }, [lapNumber, map?.mapVersion]);
 
   useEffect(() => {
-    const trail = trailRef.current;
     if (pos) {
-      const last = trail[trail.length - 1];
-      if (!last || Math.hypot(pos.x - last.x, pos.z - last.z) > 2) trail.push({ x: pos.x, z: pos.z });
+      const last = trailRef.current[trailRef.current.length - 1];
+      const jump = last ? Math.hypot(pos.x - last.x, pos.z - last.z) : 0;
+      // Salto grande (retroceder, teleporte): recomeça o rasto em vez de traçar uma reta.
+      if (jump > 50) trailRef.current = [];
+      if (!last || jump > 2) trailRef.current.push({ x: pos.x, z: pos.z });
     }
+    const trail = trailRef.current;
 
     const ctx = canvasRef.current.getContext("2d");
     ctx.clearRect(0, 0, W, H);

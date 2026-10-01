@@ -169,7 +169,7 @@ udp.on("message", (buf, rinfo) => {
     }
   }
   timer.update(t);
-  latest = t;
+  if (t.isRaceOn) latest = t; // pacotes de pausa/retroceder vêm a zero (posição 0,0, carro 0)
   lastPacketAt = Date.now();
 });
 udp.on("error", (err) => {
