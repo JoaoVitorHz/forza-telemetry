@@ -16,6 +16,7 @@ const SCOUT_STEP_M = 2; // resolução do trajeto guardado à procura de um circ
 const SCOUT_MAX_POINTS = 20_000; // ~40 km de trajeto
 const LOOP_MATCH_M = 10; // distância para considerar que voltou a passar no mesmo ponto
 const ABANDON_FACTOR = 3; // volta automática com mais do triplo da primeira = saiu do circuito
+const RACE_END_MS = 3000; // tempo de volta do jogo a 0 durante isto = a corrida acabou
 const REWIND_MATCH_M = 8; // depois de retroceder o carro reaparece num ponto já percorrido (a menos disto)
 const REWIND_MIN_BACK_M = 5; // recuos menores contam como pausa (o carro ficou no mesmo sítio)
 
@@ -35,6 +36,7 @@ export class LapTimer {
     this.mapVersion = 0;
     this.gameRace = false; // numa corrida oficial: os tempos vêm do próprio jogo
     this.gameLap = 0;
+    this.raceZeroSince = null; // quando o tempo de volta do jogo ficou a 0 (fim de corrida?)
     this.manualPause = false; // botão Pausar: ignora os pacotes até retomar
     this.carKey = null; // ID do carro atual (recordes e setores são por carro)
     this.miniCount = 0; // n.º de mini-setores (0 = desligado), vem das Configurações
@@ -222,10 +224,15 @@ export class LapTimer {
     this.setCar(String(t.carOrdinal));
 
     // Corrida oficial: o jogo envia o tempo da volta; fora dela vem a zero. (O "tempo de corrida"
-    // não serve: no FH6 conta sempre, mesmo em roaming livre.)
-    const inRace = t.currentLap > 0;
-    if (inRace && !this.gameRace) this.enterRace(t);
-    else if (!inRace && this.gameRace) this.leaveRace();
+    // não serve: no FH6 conta sempre, mesmo em roaming livre.) Ao passar a meta o tempo de volta
+    // também vai a 0 por instantes, por isso só se sai da corrida se ficar a 0 algum tempo.
+    if (t.currentLap > 0) {
+      this.raceZeroSince = null;
+      if (!this.gameRace) this.enterRace(t);
+    } else if (this.gameRace) {
+      this.raceZeroSince ??= t.timestampMs;
+      if (t.timestampMs - this.raceZeroSince > RACE_END_MS) this.leaveRace();
+    }
 
     // Em pausa congela; ao retomar, o primeiro pacote só serve de referência (ressincroniza).
     // Pausa e retroceder chegam ambos como pacotes "fora de corrida"; se o carro reaparecer
