@@ -9,4 +9,15 @@ export const SETTINGS_GROUPS = [
       { key: "showLapHistory", type: "bool", label: "Tabela de voltas", desc: "Histórico das voltas da sessão com os setores." },
     ],
   },
+  {
+    title: "Análise",
+    items: [
+      {
+        key: "compareChart",
+        type: "bool",
+        label: "Gráfico de comparação",
+        desc: "Ao escolher uma volta, compara delta, velocidade, acelerador e travão com o recorde ao longo da pista.",
+      },
+    ],
+  },
 ];

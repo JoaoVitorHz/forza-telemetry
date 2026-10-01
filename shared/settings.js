@@ -3,6 +3,7 @@
 export const DEFAULT_SETTINGS = {
   showPedals: true,
   showLapHistory: true,
+  compareChart: true,
 };
 
 // Junta valores guardados com os por defeito, ignorando chaves desconhecidas ou de tipo errado.

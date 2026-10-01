@@ -3,9 +3,10 @@ import TrackMap from "./TrackMap.jsx";
 import LapHistory from "./LapHistory.jsx";
 import { fmtSector, fmtTime } from "./format.js";
 import { askCarName, carLabel } from "./cars.js";
+import CompareChart from "./CompareChart.jsx";
 
 // Vista de uma pista guardada: recordes por carro, mapa e todas as voltas já feitas nela.
-export default function TrackView({ view, savedLap, activeTrackId, liveCar, carNames, send }) {
+export default function TrackView({ view, savedLap, activeTrackId, liveCar, carNames, settings, send }) {
   const [selected, setSelected] = useState(null);
   const [carKey, setCarKey] = useState(null);
 
@@ -97,6 +98,7 @@ export default function TrackView({ view, savedLap, activeTrackId, liveCar, carN
           }}
           lap={shownLap}
         />
+        {shownLap && settings.compareChart && <CompareChart lap={shownLap} label={`Volta ${shownN}`} />}
       </section>
     </div>
   );

@@ -6,6 +6,7 @@ import Sectors from "./Sectors.jsx";
 import LapHistory from "./LapHistory.jsx";
 import TrackView from "./TrackView.jsx";
 import Settings from "./Settings.jsx";
+import CompareChart from "./CompareChart.jsx";
 import { fmtDelta, fmtTime } from "./format.js";
 import { askCarName, carLabel } from "./cars.js";
 
@@ -117,6 +118,7 @@ export default function App() {
           activeTrackId={timer?.track?.id}
           liveCar={timer?.car}
           carNames={carNames}
+          settings={settings}
           send={send}
         />
       </>
@@ -186,6 +188,7 @@ export default function App() {
             {selectedLap != null && <button onClick={() => setSelectedLap(null)}>Ao vivo</button>}
           </div>
           <TrackMap map={map} pos={t} lapNumber={timer?.lapNumber} lap={viewedLap} />
+          {viewedLap && settings.compareChart && <CompareChart lap={viewedLap} label={`Volta ${viewedLap.n}`} />}
           <Tracks tracks={tracks} timer={timer} send={send} />
         </section>
       </div>

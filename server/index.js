@@ -166,7 +166,12 @@ wss.on("connection", (ws) => {
     if (msg.type === "setStart" && latest) timer.setStart(latest);
     else if (msg.type === "reset") timer.reset();
     else if (msg.type === "togglePause") timer.manualPause = !timer.manualPause;
-    else if (msg.type === "getLap") send(ws, { type: "lap", n: msg.n, lap: timer.getLap(msg.n) });
+    else if (msg.type === "getLap") {
+      const lap = timer.getLap(msg.n);
+      // Recorde do carro com que a volta foi feita, para o gráfico de comparação.
+      const ref = lap && (timer.records[lap.car]?.best ?? (lap.car === timer.carKey ? timer.ref : null));
+      send(ws, { type: "lap", n: msg.n, lap: lap && { ...lap, refMs: ref?.ms ?? null, refSamples: ref?.samples ?? null } });
+    }
     else if (msg.type === "setSettings" && msg.patch) {
       settings.update(msg.patch);
       broadcast({ type: "settings", values: settings.values });
@@ -176,7 +181,8 @@ wss.on("connection", (ws) => {
     } else if (msg.type === "getTrackView") send(ws, { type: "trackView", view: trackView(msg.id) });
     else if (msg.type === "getSavedLap") {
       const lap = readLaps(msg.trackId).find((l) => l.id === msg.lapId) ?? null;
-      send(ws, { type: "savedLap", lap });
+      const ref = lap && store.get(msg.trackId)?.records?.[String(lap.car?.ordinal ?? "?")]?.best;
+      send(ws, { type: "savedLap", lap: lap && { ...lap, refMs: ref?.ms ?? null, refSamples: ref?.samples ?? null } });
     }
     else if (msg.type === "saveTrack" && timer.start && !timer.track) {
       const name = String(msg.name ?? "").trim().slice(0, 60) || `Pista ${store.tracks.length + 1}`;

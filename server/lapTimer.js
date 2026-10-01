@@ -227,7 +227,14 @@ export class LapTimer {
   // Acumula distância, amostras para o delta e traçado da volta atual, e verifica os setores.
   advance(t, step, prevMs) {
     this.lapDist += step;
-    this.samples.push([this.lapDist, this.currentMs]);
+    // [distância, tempo, km/h, acelerador %, travão %] — delta e gráfico de comparação
+    this.samples.push([
+      this.lapDist,
+      this.currentMs,
+      Math.round(t.speed * 3.6),
+      Math.round(t.throttle / 2.55),
+      Math.round(t.brake / 2.55),
+    ]);
     const last = this.path[this.path.length - 1];
     if (Math.hypot(t.x - last.x, t.z - last.z) >= PATH_STEP_M) this.path.push({ x: t.x, z: t.z });
     this.checkGate(t, prevMs);
@@ -397,13 +404,13 @@ function computeSectors(path) {
 function downsample(samples) {
   const out = [];
   let lastDist = -Infinity;
-  for (const [dist, ms] of samples) {
+  for (const [dist, ...rest] of samples) {
     if (dist - lastDist >= SAMPLE_STEP_M) {
-      out.push([round1(dist), ms]);
+      out.push([round1(dist), ...rest]);
       lastDist = dist;
     }
   }
   const lastSample = samples[samples.length - 1];
-  if (out[out.length - 1][1] !== lastSample[1]) out.push([round1(lastSample[0]), lastSample[1]]);
+  if (out[out.length - 1][1] !== lastSample[1]) out.push([round1(lastSample[0]), ...lastSample.slice(1)]);
   return out;
 }
