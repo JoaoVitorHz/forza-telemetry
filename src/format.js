@@ -5,6 +5,11 @@ export function fmtTime(ms) {
   return `${m}:${s}`;
 }
 
+// Setores: "36.049" (ou "1:02.345" se passar de um minuto)
+export function fmtSector(ms) {
+  return ms < 60000 ? (ms / 1000).toFixed(3) : fmtTime(ms);
+}
+
 export function fmtDelta(ms) {
   if (ms == null) return "--.---";
   return `${ms < 0 ? "-" : "+"}${(Math.abs(ms) / 1000).toFixed(3)}`;

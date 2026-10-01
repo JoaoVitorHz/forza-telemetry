@@ -12,11 +12,11 @@ const DETECT_RADIUS = START_RADIUS * 2; // carrega a pista antes de chegar à pa
 const timer = new LapTimer();
 const store = new TrackStore();
 
-// Novo recorde numa pista guardada: grava logo no ficheiro.
-timer.onRecord = () => {
+// Recorde, setores ou melhores setores mudaram numa pista guardada: grava logo no ficheiro.
+timer.onTrackUpdate = () => {
   if (!timer.track) return;
-  store.update(timer.track.id, { best: timer.ref });
-  console.log(`[pistas] novo recorde em "${timer.track.name}"`);
+  store.update(timer.track.id, { best: timer.ref, sectors: timer.sectors, bestSectors: [...timer.bestSectors] });
+  console.log(`[pistas] "${timer.track.name}" atualizada`);
   broadcastTracks();
 };
 let latest = null;
@@ -102,7 +102,7 @@ wss.on("connection", (ws) => {
     else if (msg.type === "reset") timer.reset();
     else if (msg.type === "saveTrack" && timer.start && !timer.track) {
       const name = String(msg.name ?? "").trim().slice(0, 60) || `Pista ${store.tracks.length + 1}`;
-      const track = store.add({ name, start: timer.start, best: timer.ref });
+      const track = store.add({ name, start: timer.start, best: timer.ref, sectors: timer.sectors, bestSectors: [...timer.bestSectors] });
       timer.track = { id: track.id, name: track.name };
       console.log(`[pistas] guardada: "${name}"`);
       broadcastTracks();

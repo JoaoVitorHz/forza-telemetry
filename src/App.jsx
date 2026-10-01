@@ -1,6 +1,7 @@
 import { useTelemetry } from "./useTelemetry.js";
 import TrackMap from "./TrackMap.jsx";
 import Tracks from "./Tracks.jsx";
+import Sectors from "./Sectors.jsx";
 import { fmtDelta, fmtTime } from "./format.js";
 
 const WS_URL = `ws://${location.hostname}:8080`;
@@ -64,6 +65,8 @@ export default function App() {
         <Row label="ÚLTIMA" value={fmtTime(timer?.lastLapMs)} />
         <Row label="MELHOR (SESSÃO)" value={fmtTime(timer?.sessionBestMs)} />
         <Row label="RECORDE" value={fmtTime(timer?.recordMs)} className="best" />
+
+        <Sectors sectors={timer?.sectors} />
 
         {t && (
           <div className="live">

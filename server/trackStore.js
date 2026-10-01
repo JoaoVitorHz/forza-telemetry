@@ -32,8 +32,8 @@ export class TrackStore {
     return this.tracks.find((t) => t.id === id);
   }
 
-  add({ name, start, best }) {
-    const track = { id: Date.now().toString(36), name, start, best, createdAt: new Date().toISOString() };
+  add({ name, start, best, sectors, bestSectors }) {
+    const track = { id: Date.now().toString(36), name, start, best, sectors, bestSectors, createdAt: new Date().toISOString() };
     this.tracks.push(track);
     this.save();
     return track;

@@ -66,6 +66,14 @@ export default function TrackMap({ map, pos, lapNumber }) {
     line(ref, "#555", 9);
     line(ref, "#bbb", 5);
     line(trail, "#4da3ff", 2);
+    map?.sectors?.forEach((s, i) => {
+      dot(s, "#f39c12", 5);
+      const [x, y] = proj(s);
+      ctx.fillStyle = "#f39c12";
+      ctx.font = "bold 12px system-ui";
+      ctx.textAlign = "left";
+      ctx.fillText(`S${i + 1}`, x + 8, y + 4);
+    });
     if (map?.start) {
       dot(map.start, "#2ecc71", 7);
       const [sx, sy] = proj(map.start);
