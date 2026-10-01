@@ -5,6 +5,8 @@ export const DEFAULT_SETTINGS = {
   showLapHistory: true,
   compareChart: true,
   ghost: true,
+  miniSectors: true,
+  miniSectorCount: 12,
   overlaySectors: true,
   overlayMap: false,
   overlayOpacity: 80,

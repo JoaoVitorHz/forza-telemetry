@@ -638,3 +638,23 @@ body.overlay-body {
   color: #4da3ff;
   user-select: all;
 }
+
+.segmented {
+  display: inline-flex;
+  margin-left: auto;
+}
+.segmented button {
+  padding: 4px 10px;
+  border-radius: 0;
+}
+.segmented button:first-child {
+  border-radius: 4px 0 0 4px;
+}
+.segmented button:last-child {
+  border-radius: 0 4px 4px 0;
+  border-left: none;
+}
+.segmented button.active {
+  background: #2a2a2a;
+  border-color: #555;
+}

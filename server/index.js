@@ -17,6 +17,10 @@ const timer = new LapTimer();
 const store = new TrackStore();
 const cars = new CarStore();
 const settings = new SettingsStore();
+const applySettings = () => {
+  timer.miniCount = settings.values.miniSectors ? settings.values.miniSectorCount : 0;
+};
+applySettings();
 
 // Recorde, setores ou melhores setores mudaram numa pista guardada: grava logo no ficheiro.
 timer.onTrackUpdate = () => {
@@ -187,6 +191,7 @@ wss.on("connection", (ws) => {
     }
     else if (msg.type === "setSettings" && msg.patch) {
       settings.update(msg.patch);
+      applySettings();
       broadcast({ type: "settings", values: settings.values });
     } else if (msg.type === "nameCar" && msg.id != null) {
       cars.setName(String(msg.id), msg.name);

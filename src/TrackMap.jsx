@@ -22,9 +22,30 @@ function sectorSegments(lap) {
   return segments;
 }
 
+// Divide um traçado em colors.length troços de igual comprimento (troço sem cor = null).
+function segmentsByDistance(path, colors) {
+  if (!path?.length || !colors?.length) return [];
+  const cum = [0];
+  for (let i = 1; i < path.length; i++) {
+    cum.push(cum[i - 1] + Math.hypot(path[i].x - path[i - 1].x, path[i].z - path[i - 1].z));
+  }
+  const total = cum[cum.length - 1];
+  const segments = [];
+  let i = 0;
+  colors.forEach((color, k) => {
+    const end = ((k + 1) * total) / colors.length;
+    const pts = [path[i]];
+    while (i < path.length - 1 && cum[i + 1] <= end) pts.push(path[++i]);
+    if (color && pts.length > 1) segments.push({ pts, color: SECTOR_COLORS[color] });
+  });
+  return segments;
+}
+
 // Desenha o traçado da melhor volta (ou o rasto da volta atual enquanto não há nenhuma),
 // a linha de partida e a posição do carro. Com `lap`, mostra essa volta colorida por setor.
-export default function TrackMap({ map, pos, lapNumber, lap, ghost }) {
+// miniColors: mini-setores (ao vivo pintam o traçado de referência; com `lap` e
+// lapColorMode = "mini" pintam o traçado da volta em vez dos setores).
+export default function TrackMap({ map, pos, lapNumber, lap, ghost, miniColors, lapColorMode = "sectors" }) {
   const canvasRef = useRef(null);
   const trailRef = useRef([]);
 
@@ -86,10 +107,16 @@ export default function TrackMap({ map, pos, lapNumber, lap, ghost }) {
 
     if (lap) {
       line(ref, "#2a2a2a", 9);
-      for (const seg of sectorSegments(lap)) line(seg.pts, seg.color, 5);
+      if (lapColorMode === "mini" && miniColors) {
+        line(lap.path, NO_SECTOR, 5);
+        for (const seg of segmentsByDistance(lap.path, miniColors)) line(seg.pts, seg.color, 5);
+      } else {
+        for (const seg of sectorSegments(lap)) line(seg.pts, seg.color, 5);
+      }
     } else {
       line(ref, "#555", 9);
       line(ref, "#bbb", 5);
+      for (const seg of segmentsByDistance(ref, miniColors)) line(seg.pts, seg.color, 5);
       line(trail, "#4da3ff", 2);
     }
     map?.sectors?.forEach((s, i) => {
@@ -119,7 +146,7 @@ export default function TrackMap({ map, pos, lapNumber, lap, ghost }) {
       ctx.fillText(`REC ${ghost.gapM > 0 ? "+" : ""}${ghost.gapM} m`, gx + 10, gy - 8);
     }
     if (pos && !lap) dot(pos, "#fff", 6);
-  }, [map, pos, lapNumber, lap, ghost]);
+  }, [map, pos, lapNumber, lap, ghost, miniColors, lapColorMode]);
 
   return <canvas ref={canvasRef} width={W} height={H} className="map" />;
 }

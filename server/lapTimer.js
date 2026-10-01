@@ -1,3 +1,5 @@
+import { miniSectorColors } from "../shared/miniSectors.js";
+
 // Cronómetro próprio: no Horizon os campos de volta do jogo vêm a zero fora de corridas oficiais,
 // por isso as voltas são detetadas pela posição do carro em relação a uma linha de partida.
 
@@ -29,6 +31,7 @@ export class LapTimer {
     this.gameLap = 0;
     this.manualPause = false; // botão Pausar: ignora os pacotes até retomar
     this.carKey = null; // ID do carro atual (recordes e setores são por carro)
+    this.miniCount = 0; // n.º de mini-setores (0 = desligado), vem das Configurações
     this.onTrackUpdate = null; // chamado quando recorde, setores ou melhores setores mudam
     this.onLapComplete = null; // chamado com cada volta fechada (com traçado), para o histórico
     this.reset();
@@ -363,6 +366,8 @@ export class LapTimer {
       currentMs: this.currentMs,
       deltaMs: this.deltaMs(),
       ghost: this.ghost(),
+      miniSectors:
+        this.running && this.miniCount ? miniSectorColors(this.samples, this.ref?.samples, this.miniCount, false) : null,
       lastLapMs: this.lastLapMs,
       sessionBestMs: this.sessionBestMs,
       recordMs: this.ref?.ms ?? null,

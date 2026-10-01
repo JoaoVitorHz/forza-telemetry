@@ -1,14 +1,25 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import TrackMap from "./TrackMap.jsx";
 import LapHistory from "./LapHistory.jsx";
 import { fmtSector, fmtTime } from "./format.js";
 import { askCarName, carLabel } from "./cars.js";
 import CompareChart from "./CompareChart.jsx";
+import LapColorToggle from "./LapColorToggle.jsx";
+import { miniSectorColors } from "../shared/miniSectors.js";
 
 // Vista de uma pista guardada: recordes por carro, mapa e todas as voltas já feitas nela.
 export default function TrackView({ view, savedLap, activeTrackId, liveCar, carNames, settings, send }) {
   const [selected, setSelected] = useState(null);
   const [carKey, setCarKey] = useState(null);
+  const [lapColorMode, setLapColorMode] = useState("sectors");
+  const shownLap = selected && savedLap?.id === selected ? savedLap : null;
+  const lapMini = useMemo(
+    () =>
+      settings.miniSectors && shownLap
+        ? miniSectorColors(shownLap.samples, shownLap.refSamples, settings.miniSectorCount, true)
+        : null,
+    [settings.miniSectors, settings.miniSectorCount, shownLap],
+  );
 
   useEffect(() => setSelected(null), [view?.id, carKey]);
 
@@ -23,7 +34,6 @@ export default function TrackView({ view, savedLap, activeTrackId, liveCar, carN
   const laps = view.laps
     .filter((lap) => car && String(lap.car?.ordinal ?? "?") === car.key)
     .map((lap, i) => ({ ...lap, n: i + 1 }));
-  const shownLap = selected && savedLap?.id === selected ? savedLap : null;
   const shownN = laps.find((l) => l.id === selected)?.n;
 
   const select = (id) => {
@@ -87,6 +97,7 @@ export default function TrackView({ view, savedLap, activeTrackId, liveCar, carN
       <section className="panel">
         <div className="map-header">
           <h2>{shownLap ? `MAPA • VOLTA ${shownN} • ${fmtTime(shownLap.ms)}` : "MAPA"}</h2>
+          {lapMini && <LapColorToggle mode={lapColorMode} onChange={setLapColorMode} />}
           {selected && <button onClick={() => setSelected(null)}>Recorde</button>}
         </div>
         <TrackMap
@@ -97,6 +108,8 @@ export default function TrackView({ view, savedLap, activeTrackId, liveCar, carN
             mapVersion: `${view.id}-${car?.key}`,
           }}
           lap={shownLap}
+          miniColors={lapMini}
+          lapColorMode={lapColorMode}
         />
         {shownLap && settings.compareChart && <CompareChart lap={shownLap} label={`Volta ${shownN}`} />}
       </section>

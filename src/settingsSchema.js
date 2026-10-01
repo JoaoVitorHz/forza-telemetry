@@ -24,6 +24,13 @@ export const SETTINGS_GROUPS = [
         label: "Fantasma no mapa",
         desc: "Ponto roxo que mostra onde estaria o carro do recorde neste momento, e a distância até ele.",
       },
+      {
+        key: "miniSectors",
+        type: "bool",
+        label: "Mini-setores no mapa",
+        desc: "Divide a pista em troços iguais: roxo = mais rápido que o recorde nesse troço, amarelo = mais lento.",
+      },
+      { key: "miniSectorCount", type: "number", min: 4, max: 40, label: "Número de mini-setores", desc: "Entre 4 e 40." },
     ],
   },
   {

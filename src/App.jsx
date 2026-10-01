@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useTelemetry } from "./useTelemetry.js";
 import TrackMap from "./TrackMap.jsx";
 import Tracks from "./Tracks.jsx";
@@ -7,6 +7,8 @@ import LapHistory from "./LapHistory.jsx";
 import TrackView from "./TrackView.jsx";
 import Settings from "./Settings.jsx";
 import CompareChart from "./CompareChart.jsx";
+import LapColorToggle from "./LapColorToggle.jsx";
+import { miniSectorColors } from "../shared/miniSectors.js";
 import { fmtDelta, fmtTime } from "./format.js";
 import { askCarName, carLabel } from "./cars.js";
 
@@ -46,6 +48,14 @@ export default function App() {
   // Volta escolhida no histórico para ver no mapa (null = ao vivo).
   const [selectedLap, setSelectedLap] = useState(null);
   const viewedLap = selectedLap != null && lapDetail?.n === selectedLap ? lapDetail : null;
+  const [lapColorMode, setLapColorMode] = useState("sectors");
+  const lapMini = useMemo(
+    () =>
+      settings.miniSectors && viewedLap
+        ? miniSectorColors(viewedLap.samples, viewedLap.refSamples, settings.miniSectorCount, true)
+        : null,
+    [settings.miniSectors, settings.miniSectorCount, viewedLap],
+  );
   const selectLap = (n) => {
     if (n === selectedLap) return setSelectedLap(null);
     setSelectedLap(n);
@@ -185,6 +195,7 @@ export default function App() {
         <section className="panel">
           <div className="map-header">
             <h2>{viewedLap ? `MAPA • VOLTA ${viewedLap.n} • ${fmtTime(viewedLap.ms)}` : "MAPA"}</h2>
+            {lapMini && <LapColorToggle mode={lapColorMode} onChange={setLapColorMode} />}
             {selectedLap != null && <button onClick={() => setSelectedLap(null)}>Ao vivo</button>}
           </div>
           <TrackMap
@@ -193,6 +204,8 @@ export default function App() {
             lapNumber={timer?.lapNumber}
             lap={viewedLap}
             ghost={settings.ghost ? timer?.ghost : null}
+            miniColors={viewedLap ? lapMini : timer?.miniSectors}
+            lapColorMode={lapColorMode}
           />
           {viewedLap && settings.compareChart && <CompareChart lap={viewedLap} label={`Volta ${viewedLap.n}`} />}
           <Tracks tracks={tracks} timer={timer} send={send} />
