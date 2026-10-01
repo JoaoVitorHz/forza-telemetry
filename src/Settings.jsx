@@ -1,5 +1,4 @@
 import { SETTINGS_GROUPS } from "./settingsSchema.js";
-import { testSound } from "./sound.js";
 
 // Aba Configurações: ativa/desativa cada funcionalidade. Grava no servidor ao mudar.
 export default function Settings({ settings, network, send }) {
@@ -20,9 +19,7 @@ export default function Settings({ settings, network, send }) {
                 {item.desc && <span className="setting-desc">{item.desc}</span>}
                 {item.key === "lanAccess" && <LanInfo settings={settings} network={network} />}
               </div>
-              {item.type === "action" ? (
-                <button onClick={() => testSound(settings)}>{item.label}</button>
-              ) : item.type === "bool" ? (
+              {item.type === "bool" ? (
                 <label className="switch">
                   <input type="checkbox" checked={!!settings[item.key]} onChange={(e) => set(item.key, e.target.checked)} />
                   <span />

@@ -8,7 +8,6 @@ import TrackView from "./TrackView.jsx";
 import Settings from "./Settings.jsx";
 import CompareChart from "./CompareChart.jsx";
 import LapColorToggle from "./LapColorToggle.jsx";
-import { useAnnouncer } from "./sound.js";
 import { miniSectorColors } from "../shared/miniSectors.js";
 import { fmtDelta, fmtTime } from "./format.js";
 import { askCarName, carLabel } from "./cars.js";
@@ -36,7 +35,6 @@ export default function App() {
   const { state, map, tracks, lapDetail, trackView, savedLap, carNames, settings, network, online, send } = useTelemetry(WS_URL);
   const t = state?.telemetry;
   const timer = state?.timer;
-  useAnnouncer(timer, settings);
 
   // Seletor no topo: null = ao vivo; id = ver uma pista guardada.
   const [view, setView] = useState(null);
