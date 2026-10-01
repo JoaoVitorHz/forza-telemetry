@@ -758,3 +758,38 @@ body.overlay-body {
 .balance.over {
   color: #f39c12;
 }
+
+.stats {
+  margin-top: 16px;
+  border-top: 1px solid #222;
+  padding-top: 14px;
+}
+.stat-tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(96px, 1fr));
+  gap: 6px;
+}
+.stat-tile {
+  display: grid;
+  gap: 2px;
+  padding: 8px;
+  background: #141414;
+  border: 1px solid #262626;
+  border-radius: 4px;
+}
+.stat-label {
+  font-size: 11px;
+  color: #888;
+}
+.stat-value {
+  font-size: 16px;
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+.stat-sub {
+  font-size: 12px;
+  color: #aaa;
+}
+.stats .hint {
+  margin-top: 6px;
+}

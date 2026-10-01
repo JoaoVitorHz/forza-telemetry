@@ -9,6 +9,7 @@ import Settings from "./Settings.jsx";
 import CompareChart from "./CompareChart.jsx";
 import LapColorToggle from "./LapColorToggle.jsx";
 import CarPanel from "./CarPanel.jsx";
+import Stats from "./Stats.jsx";
 import { miniSectorColors } from "../shared/miniSectors.js";
 import { fmtDelta, fmtTime } from "./format.js";
 import { askCarName, carLabel } from "./cars.js";
@@ -191,6 +192,7 @@ export default function App() {
             </button>
           </div>
 
+          {settings.stats && <Stats laps={timer?.laps} excludeSlow={settings.statsExcludeSlow} />}
           {settings.showLapHistory && <LapHistory laps={timer?.laps} selected={selectedLap} onSelect={selectLap} />}
         </section>
 

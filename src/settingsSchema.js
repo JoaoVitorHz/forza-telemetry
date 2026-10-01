@@ -40,6 +40,8 @@ export const SETTINGS_GROUPS = [
         desc: "Divide a pista em troços iguais: roxo = mais rápido que o recorde nesse troço, amarelo = mais lento.",
       },
       { key: "miniSectorCount", type: "number", min: 4, max: 40, label: "Número de mini-setores", desc: "Entre 4 e 40." },
+      { key: "stats", type: "bool", label: "Estatísticas de consistência", desc: "Média, desvio, mediana e voltas a menos de 0,5 s da melhor." },
+      { key: "statsExcludeSlow", type: "bool", label: "Ignorar voltas lentas nas estatísticas", desc: "Deixa de fora voltas acima de 107% da melhor (acidentes, trânsito)." },
     ],
   },
   {

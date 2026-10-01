@@ -11,6 +11,8 @@ export const DEFAULT_SETTINGS = {
   ghost: true,
   miniSectors: true,
   miniSectorCount: 12,
+  stats: true,
+  statsExcludeSlow: true,
   overlaySectors: true,
   overlayMap: false,
   overlayOpacity: 80,

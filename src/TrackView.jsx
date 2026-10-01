@@ -5,6 +5,7 @@ import { fmtSector, fmtTime } from "./format.js";
 import { askCarName, carLabel } from "./cars.js";
 import CompareChart from "./CompareChart.jsx";
 import LapColorToggle from "./LapColorToggle.jsx";
+import Stats from "./Stats.jsx";
 import { miniSectorColors } from "../shared/miniSectors.js";
 
 // Vista de uma pista guardada: recordes por carro, mapa e todas as voltas já feitas nela.
@@ -91,6 +92,7 @@ export default function TrackView({ view, savedLap, activeTrackId, liveCar, carN
           </button>
         </div>
 
+        {settings.stats && <Stats laps={laps} excludeSlow={settings.statsExcludeSlow} />}
         {laps.length > 0 && <LapHistory laps={laps} selected={selected} onSelect={select} />}
       </section>
 
