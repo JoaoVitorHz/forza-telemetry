@@ -4,6 +4,9 @@ export const DEFAULT_SETTINGS = {
   showPedals: true,
   showLapHistory: true,
   compareChart: true,
+  overlaySectors: true,
+  overlayMap: false,
+  overlayOpacity: 80,
 };
 
 // Junta valores guardados com os por defeito, ignorando chaves desconhecidas ou de tipo errado.

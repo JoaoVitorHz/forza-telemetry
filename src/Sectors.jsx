@@ -1,10 +1,10 @@
 import { fmtDelta, fmtSector, fmtTime } from "./format.js";
 
 // Três setores estilo F1. Mostra os setores da volta atual; os que ainda não foram
-// feitos mostram (esbatidos) os da volta anterior.
-export default function Sectors({ sectors }) {
+// feitos mostram (esbatidos) os da volta anterior. `compact` mostra só os três quadros (overlay).
+export default function Sectors({ sectors, compact = false }) {
   if (!sectors?.enabled) {
-    return <p className="hint sectors-hint">Os setores aparecem depois da primeira volta completa.</p>;
+    return compact ? null : <p className="hint sectors-hint">Os setores aparecem depois da primeira volta completa.</p>;
   }
 
   return (
@@ -23,16 +23,20 @@ export default function Sectors({ sectors }) {
         })}
       </div>
 
-      <div className="sector-best">
-        <span className="label">MELHORES</span>
-        {sectors.best.map((ms, i) => (
-          <span key={i}>{ms != null ? fmtSector(ms) : "--"}</span>
-        ))}
-      </div>
-      <div className="row">
-        <span className="label">POSSIBLE BEST</span>
-        <span className="value best small">{fmtTime(sectors.possibleBestMs)}</span>
-      </div>
+      {!compact && (
+        <>
+          <div className="sector-best">
+            <span className="label">MELHORES</span>
+            {sectors.best.map((ms, i) => (
+              <span key={i}>{ms != null ? fmtSector(ms) : "--"}</span>
+            ))}
+          </div>
+          <div className="row">
+            <span className="label">POSSIBLE BEST</span>
+            <span className="value best small">{fmtTime(sectors.possibleBestMs)}</span>
+          </div>
+        </>
+      )}
     </div>
   );
 }

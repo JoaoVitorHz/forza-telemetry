@@ -20,4 +20,12 @@ export const SETTINGS_GROUPS = [
       },
     ],
   },
+  {
+    title: "Overlay (npm run overlay)",
+    items: [
+      { key: "overlaySectors", type: "bool", label: "Setores no overlay", desc: "Mostra S1, S2 e S3 com as cores." },
+      { key: "overlayMap", type: "bool", label: "Mapa no overlay", desc: "Mapa pequeno com a posição do carro." },
+      { key: "overlayOpacity", type: "number", min: 0, max: 100, label: "Opacidade do fundo (%)", desc: "0 = totalmente transparente." },
+    ],
+  },
 ];
