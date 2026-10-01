@@ -140,13 +140,6 @@ button:disabled {
   cursor: default;
 }
 
-.laps {
-  margin: 14px 0 0;
-  padding-left: 28px;
-  font-variant-numeric: tabular-nums;
-  color: #bbb;
-}
-
 .map {
   width: 100%;
   height: auto;
@@ -273,4 +266,80 @@ button:disabled {
 }
 .sectors-hint {
   margin-top: 12px;
+}
+
+.history {
+  margin-top: 16px;
+  border-top: 1px solid #222;
+  padding-top: 14px;
+}
+.history-scroll {
+  max-height: 260px;
+  overflow-y: auto;
+}
+.history table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+.history th {
+  position: sticky;
+  top: 0;
+  background: #0d0d0d;
+  color: #888;
+  font-size: 11px;
+  font-weight: 600;
+  text-align: right;
+  padding: 4px 6px;
+}
+.history td {
+  text-align: right;
+  padding: 4px 6px;
+  border-top: 1px solid #1a1a1a;
+}
+.history th:first-child,
+.history td.lap-n {
+  text-align: left;
+  color: #888;
+}
+.history td.purple {
+  color: #b57bff;
+}
+.history td.green {
+  color: #2ecc71;
+}
+.history td.yellow {
+  color: #f1c40f;
+}
+.history td.none {
+  color: #555;
+}
+
+.history tbody tr {
+  cursor: pointer;
+}
+.history tbody tr:hover {
+  background: #161616;
+}
+.history tbody tr.selected {
+  background: #1d1d2b;
+  outline: 1px solid #4da3ff66;
+}
+.map-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.map-header h2 {
+  margin: 0;
+}
+.map-header button {
+  padding: 4px 10px;
+}
+button.active {
+  background: #3a2a10;
+  border-color: #f39c12;
 }

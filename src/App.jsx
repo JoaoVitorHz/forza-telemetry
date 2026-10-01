@@ -1,7 +1,9 @@
+import { useState } from "react";
 import { useTelemetry } from "./useTelemetry.js";
 import TrackMap from "./TrackMap.jsx";
 import Tracks from "./Tracks.jsx";
 import Sectors from "./Sectors.jsx";
+import LapHistory from "./LapHistory.jsx";
 import { fmtDelta, fmtTime } from "./format.js";
 
 const WS_URL = `ws://${location.hostname}:8080`;
@@ -25,13 +27,23 @@ function Bar({ value, color }) {
 }
 
 export default function App() {
-  const { state, map, tracks, online, send } = useTelemetry(WS_URL);
+  const { state, map, tracks, lapDetail, online, send } = useTelemetry(WS_URL);
   const t = state?.telemetry;
   const timer = state?.timer;
+
+  // Volta escolhida no histórico para ver no mapa (null = ao vivo).
+  const [selectedLap, setSelectedLap] = useState(null);
+  const viewedLap = selectedLap != null && lapDetail?.n === selectedLap ? lapDetail : null;
+  const selectLap = (n) => {
+    if (n === selectedLap) return setSelectedLap(null);
+    setSelectedLap(n);
+    send({ type: "getLap", n });
+  };
 
   let status;
   if (!online) status = <p className="status bad">Sem ligação ao servidor (npm run server)</p>;
   else if (!state?.receiving) status = <p className="status bad">À espera do jogo… (Data Out → 127.0.0.1:8005)</p>;
+  else if (timer?.manualPause) status = <p className="status bad">PAUSADO • carrega em «Retomar» para continuar</p>;
   else if (timer?.paused) status = <p className="status bad">TELEMETRIA EM PAUSA • cronómetro congelado</p>;
   else if (timer?.running)
     status = <p className="status good">{timer.gameTiming ? "A gravar • tempos do jogo" : "A gravar"}</p>;
@@ -84,23 +96,28 @@ export default function App() {
           <button onClick={() => send({ type: "setStart" })} disabled={!state?.receiving}>
             Definir partida
           </button>
-          <button onClick={() => send({ type: "reset" })}>Reiniciar</button>
+          <button onClick={() => send({ type: "togglePause" })} className={timer?.manualPause ? "active" : ""}>
+            {timer?.manualPause ? "Retomar" : "Pausar"}
+          </button>
+          <button
+            onClick={() => {
+              send({ type: "reset" });
+              setSelectedLap(null);
+            }}
+          >
+            Reiniciar
+          </button>
         </div>
 
-        {timer?.laps.length > 0 && (
-          <ol className="laps" start={timer.lapNumber - timer.laps.length}>
-            {timer.laps.map((ms, i) => (
-              <li key={i} className={ms === timer.recordMs ? "best" : ""}>
-                {fmtTime(ms)}
-              </li>
-            ))}
-          </ol>
-        )}
+        <LapHistory laps={timer?.laps} selected={selectedLap} onSelect={selectLap} />
       </section>
 
       <section className="panel">
-        <h2>MAPA</h2>
-        <TrackMap map={map} pos={t} lapNumber={timer?.lapNumber} />
+        <div className="map-header">
+          <h2>{viewedLap ? `MAPA • VOLTA ${viewedLap.n} • ${fmtTime(viewedLap.ms)}` : "MAPA"}</h2>
+          {selectedLap != null && <button onClick={() => setSelectedLap(null)}>Ao vivo</button>}
+        </div>
+        <TrackMap map={map} pos={t} lapNumber={timer?.lapNumber} lap={viewedLap} />
         <Tracks tracks={tracks} timer={timer} send={send} />
       </section>
     </div>

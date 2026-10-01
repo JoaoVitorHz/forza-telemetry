@@ -3,10 +3,28 @@ import { useEffect, useRef } from "react";
 const W = 600;
 const H = 500;
 const PAD = 30;
+const SECTOR_COLORS = { purple: "#b57bff", green: "#2ecc71", yellow: "#f1c40f" };
+const NO_SECTOR = "#888";
+
+// Divide o traçado de uma volta nos três setores, cada um com a sua cor.
+function sectorSegments(lap) {
+  const { path, splitIdx = [], splits = [] } = lap;
+  const bounds = [0, splitIdx[0], splitIdx[1], path.length - 1];
+  const segments = [];
+  let from = 0;
+  for (let i = 0; i < 3; i++) {
+    const to = i === 2 ? bounds[3] : bounds[i + 1];
+    if (to == null) break; // setor não medido: o resto fica a cinzento
+    segments.push({ pts: path.slice(from, to + 1), color: SECTOR_COLORS[splits[i]?.color] ?? NO_SECTOR });
+    from = to;
+  }
+  if (from < path.length - 1) segments.push({ pts: path.slice(from), color: NO_SECTOR });
+  return segments;
+}
 
 // Desenha o traçado da melhor volta (ou o rasto da volta atual enquanto não há nenhuma),
-// a linha de partida e a posição do carro.
-export default function TrackMap({ map, pos, lapNumber }) {
+// a linha de partida e a posição do carro. Com `lap`, mostra essa volta colorida por setor.
+export default function TrackMap({ map, pos, lapNumber, lap }) {
   const canvasRef = useRef(null);
   const trailRef = useRef([]);
 
@@ -25,7 +43,10 @@ export default function TrackMap({ map, pos, lapNumber }) {
     ctx.clearRect(0, 0, W, H);
 
     const ref = map?.refPath ?? [];
-    const all = [...ref, ...trail, ...(map?.start ? [map.start] : []), ...(pos ? [pos] : [])];
+    const lapPath = lap?.path ?? [];
+    const all = lap
+      ? [...ref, ...lapPath]
+      : [...ref, ...trail, ...(map?.start ? [map.start] : []), ...(pos ? [pos] : [])];
     if (all.length < 2) {
       ctx.fillStyle = "#666";
       ctx.font = "16px system-ui";
@@ -63,9 +84,14 @@ export default function TrackMap({ map, pos, lapNumber }) {
       ctx.fill();
     };
 
-    line(ref, "#555", 9);
-    line(ref, "#bbb", 5);
-    line(trail, "#4da3ff", 2);
+    if (lap) {
+      line(ref, "#2a2a2a", 9);
+      for (const seg of sectorSegments(lap)) line(seg.pts, seg.color, 5);
+    } else {
+      line(ref, "#555", 9);
+      line(ref, "#bbb", 5);
+      line(trail, "#4da3ff", 2);
+    }
     map?.sectors?.forEach((s, i) => {
       dot(s, "#f39c12", 5);
       const [x, y] = proj(s);
@@ -82,8 +108,8 @@ export default function TrackMap({ map, pos, lapNumber }) {
       ctx.textAlign = "left";
       ctx.fillText("START", sx + 10, sy + 4);
     }
-    if (pos) dot(pos, "#fff", 6);
-  }, [map, pos, lapNumber]);
+    if (pos && !lap) dot(pos, "#fff", 6);
+  }, [map, pos, lapNumber, lap]);
 
   return <canvas ref={canvasRef} width={W} height={H} className="map" />;
 }

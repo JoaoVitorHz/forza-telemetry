@@ -4,6 +4,7 @@
 export const START_RADIUS = 15; // m — distância à partida para contar a passagem
 const ARM_DISTANCE = 50; // m — tem de se afastar isto da partida antes de poder fechar volta
 const MIN_LAP_MS = 10_000;
+const MAX_LAP_HISTORY = 50;
 const MAX_DT_MS = 500; // intervalo maior entre pacotes = falha/pausa, não conta tempo
 const MAX_STEP_M = 50; // salto maior num pacote = teleporte/reinício, não conta distância
 const PATH_STEP_M = 3;
@@ -26,6 +27,7 @@ export class LapTimer {
     this.mapVersion = 0;
     this.gameRace = false; // numa corrida oficial: os tempos vêm do próprio jogo
     this.gameLap = 0;
+    this.manualPause = false; // botão Pausar: ignora os pacotes até retomar
     this.onTrackUpdate = null; // chamado quando recorde, setores ou melhores setores mudam
     this.reset();
   }
@@ -50,6 +52,7 @@ export class LapTimer {
     this.splits = [];
     this.lastSplits = [];
     this.laps = [];
+    this.lapPaths = new Map(); // n.º da volta -> { path, splitIdx } (pedido a pedido, não vai no estado)
     this.samples = [];
     this.path = [];
     this.armed = false;
@@ -99,6 +102,7 @@ export class LapTimer {
     this.armed = false;
     this.prevStartDist = 0;
     this.splits = [];
+    this.splitIdx = []; // índice no traçado onde cada setor fechou (para colorir o mapa)
     this.nextGate = 0;
     this.gatePrevSide = null;
     this.splitAtMs = 0;
@@ -108,7 +112,7 @@ export class LapTimer {
     const prev = this.prev;
     this.prev = t;
     this.paused = !t.isRaceOn;
-    if (!t.isRaceOn) return;
+    if (!t.isRaceOn || this.manualPause) return;
 
     // Corrida oficial: o jogo envia os tempos de volta; fora dela vêm a zero.
     const inRace = t.currentRaceTime > 0;
@@ -203,6 +207,7 @@ export class LapTimer {
       const at = prevMs + f * (this.currentMs - prevMs);
       this.recordSplit(this.nextGate, at - this.splitAtMs);
       this.splitAtMs = at;
+      this.splitIdx[this.nextGate] = this.path.length - 1;
       this.nextGate++;
       this.gatePrevSide = null;
       return;
@@ -227,8 +232,15 @@ export class LapTimer {
     let changed = this.splits.some((s) => s?.color === "purple"); // novo melhor setor de sempre
     this.lastSplits = this.splits;
 
+    // Histórico com as cores do momento (como nos ecrãs de tempos da F1).
+    const lapColor =
+      !this.ref || lap < this.ref.ms ? "purple" : this.sessionBestMs == null || lap < this.sessionBestMs ? "green" : "yellow";
+    this.laps.push({ n: this.lapNumber, ms: lap, color: lapColor, splits: this.splits });
+    this.path.push({ x: pos.x, z: pos.z });
+    this.lapPaths.set(this.lapNumber, { path: this.path.map((p) => ({ x: round1(p.x), z: round1(p.z) })), splitIdx: this.splitIdx });
+    if (this.laps.length > MAX_LAP_HISTORY) this.lapPaths.delete(this.laps.shift().n);
+
     this.lastLapMs = lap;
-    this.laps.push(lap);
     if (this.sessionBestMs == null || lap < this.sessionBestMs) this.sessionBestMs = lap;
     if (!this.ref || lap < this.ref.ms) {
       this.ref = { ms: lap, samples: downsample(this.samples), path: this.path.map((p) => ({ x: round1(p.x), z: round1(p.z) })) };
@@ -279,7 +291,8 @@ export class LapTimer {
       lastLapMs: this.lastLapMs,
       sessionBestMs: this.sessionBestMs,
       recordMs: this.ref?.ms ?? null,
-      laps: this.laps.slice(-10),
+      laps: this.laps,
+      manualPause: this.manualPause,
       sectors: {
         enabled: !!this.sectors,
         current: this.splits,
@@ -289,6 +302,13 @@ export class LapTimer {
       },
       mapVersion: this.mapVersion,
     };
+  }
+
+  // Volta do histórico com o traçado, para ver no mapa.
+  getLap(n) {
+    const lap = this.laps.find((l) => l.n === n);
+    const detail = this.lapPaths.get(n);
+    return lap && detail ? { ...lap, ...detail } : null;
   }
 
   mapData() {

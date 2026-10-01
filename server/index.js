@@ -100,6 +100,8 @@ wss.on("connection", (ws) => {
     }
     if (msg.type === "setStart" && latest) timer.setStart(latest);
     else if (msg.type === "reset") timer.reset();
+    else if (msg.type === "togglePause") timer.manualPause = !timer.manualPause;
+    else if (msg.type === "getLap") send(ws, { type: "lap", n: msg.n, lap: timer.getLap(msg.n) });
     else if (msg.type === "saveTrack" && timer.start && !timer.track) {
       const name = String(msg.name ?? "").trim().slice(0, 60) || `Pista ${store.tracks.length + 1}`;
       const track = store.add({ name, start: timer.start, best: timer.ref, sectors: timer.sectors, bestSectors: [...timer.bestSectors] });
