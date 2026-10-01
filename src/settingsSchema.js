@@ -1,6 +1,6 @@
 // O que aparece na aba Configurações. Cada funcionalidade nova acrescenta aqui os seus itens
 // (e o valor por defeito em shared/settings.js).
-// type: "bool" (interruptor) | "number" (com min/max); restart: só tem efeito depois de reiniciar.
+// type: "bool" (interruptor) | "number" (com min/max).
 export const SETTINGS_GROUPS = [
   {
     title: "Painel ao vivo",
@@ -38,18 +38,6 @@ export const SETTINGS_GROUPS = [
     items: [
       { key: "exportImport", type: "bool", label: "Exportar e importar pistas", desc: "Botões para descarregar uma pista em ficheiro e importar pistas de amigos." },
       { key: "exportIncludeLaps", type: "bool", label: "Incluir histórico de voltas ao exportar", desc: "O ficheiro fica maior, mas leva todas as voltas e traçados." },
-    ],
-  },
-  {
-    title: "Rede",
-    items: [
-      {
-        key: "lanAccess",
-        type: "bool",
-        restart: true,
-        label: "Acesso pelo telemóvel/tablet",
-        desc: "Permite abrir a página noutro dispositivo na mesma rede Wi-Fi. Reinicia o npm run dev depois de mudar.",
-      },
     ],
   },
   {

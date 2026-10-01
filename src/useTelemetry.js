@@ -11,7 +11,6 @@ export function useTelemetry(url) {
   const [savedLap, setSavedLap] = useState(null);
   const [carNames, setCarNames] = useState({});
   const [settings, setSettings] = useState(DEFAULT_SETTINGS);
-  const [network, setNetwork] = useState(null);
   const [online, setOnline] = useState(false);
   const wsRef = useRef(null);
 
@@ -38,7 +37,6 @@ export function useTelemetry(url) {
         else if (msg.type === "savedLap") setSavedLap(msg.lap);
         else if (msg.type === "cars") setCarNames(msg.names);
         else if (msg.type === "settings") setSettings(msg.values);
-        else if (msg.type === "network") setNetwork(msg);
         else if (msg.type === "trackExport") downloadJson(msg.fileName, msg.data);
         else if (msg.type === "importResult")
           alert(msg.ok ? `Pista importada: ${msg.name}` : `Não foi possível importar: ${msg.error}`);
@@ -58,7 +56,7 @@ export function useTelemetry(url) {
     if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify(msg));
   }, []);
 
-  return { state, map, tracks, lapDetail, trackView, savedLap, carNames, settings, network, online, send };
+  return { state, map, tracks, lapDetail, trackView, savedLap, carNames, settings, online, send };
 }
 
 function downloadJson(fileName, data) {

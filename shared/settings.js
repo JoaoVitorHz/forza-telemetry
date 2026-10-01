@@ -12,7 +12,6 @@ export const DEFAULT_SETTINGS = {
   overlaySectors: true,
   overlayMap: false,
   overlayOpacity: 80,
-  lanAccess: false,
 };
 
 // Junta valores guardados com os por defeito, ignorando chaves desconhecidas ou de tipo errado.
