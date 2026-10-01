@@ -1,10 +1,11 @@
 // Grava pacotes brutos do jogo para analisar o formato.
 // Uso: pára o "npm run dev", corre "npm run capture" e conduz durante 15 segundos.
+//      "npm run capture -- 60" grava durante 60 segundos.
 import dgram from "node:dgram";
 import fs from "node:fs";
 
 const PORT = Number(process.env.FORZA_PORT) || 8005;
-const SECONDS = 15;
+const SECONDS = Number(process.argv[2]) || 15;
 const OUT = "capture.bin";
 
 const packets = [];

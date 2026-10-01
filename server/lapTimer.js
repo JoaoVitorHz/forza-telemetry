@@ -12,6 +12,8 @@ const MAX_STEP_M = 50; // salto maior num pacote = teleporte/reinício, não con
 const PATH_STEP_M = 3;
 const SAMPLE_STEP_M = 2; // resolução das amostras guardadas para o delta
 const GATE_RADIUS = 30; // m — largura máxima da "linha" de cada setor
+const REWIND_MATCH_M = 8; // depois de retroceder o carro reaparece num ponto já percorrido (a menos disto)
+const REWIND_MIN_BACK_M = 5; // recuos menores contam como pausa (o carro ficou no mesmo sítio)
 
 const round1 = (v) => Math.round(v * 10) / 10;
 const emptySectors = () => [null, null, null];
@@ -138,7 +140,9 @@ export class LapTimer {
     this.currentMs = 0;
     this.lapDist = 0;
     this.samples = [[0, 0]];
+    this.samplePos = [{ x: pos.x, z: pos.z }]; // posição de cada amostra (para desfazer um retroceder)
     this.path = [{ x: pos.x, z: pos.z }];
+    this.pathDist = [0];
     this.armed = false;
     this.prevStartDist = 0;
     this.splits = [];
@@ -146,6 +150,7 @@ export class LapTimer {
     this.nextGate = 0;
     this.gatePrevSide = null;
     this.splitAtMs = 0;
+    this.splitMarks = []; // { dist, atMs } de cada setor fechado nesta volta
   }
 
   update(t) {
@@ -155,13 +160,19 @@ export class LapTimer {
     if (!t.isRaceOn || this.manualPause) return;
     this.setCar(String(t.carOrdinal));
 
-    // Corrida oficial: o jogo envia os tempos de volta; fora dela vêm a zero.
-    const inRace = t.currentRaceTime > 0;
+    // Corrida oficial: o jogo envia o tempo da volta; fora dela vem a zero. (O "tempo de corrida"
+    // não serve: no FH6 conta sempre, mesmo em roaming livre.)
+    const inRace = t.currentLap > 0;
     if (inRace && !this.gameRace) this.enterRace(t);
     else if (!inRace && this.gameRace) this.leaveRace();
 
     // Em pausa congela; ao retomar, o primeiro pacote só serve de referência (ressincroniza).
-    if (!prev || !prev.isRaceOn) return;
+    // Pausa e retroceder chegam ambos como pacotes "fora de corrida"; se o carro reaparecer
+    // atrás, num ponto já percorrido, foi um retroceder e a volta recua até esse ponto.
+    if (!prev || !prev.isRaceOn) {
+      if (prev && this.running) this.undoRewind(t);
+      return;
+    }
     const dt = t.timestampMs - prev.timestampMs;
     const step = Math.hypot(t.x - prev.x, t.z - prev.z);
     const validStep = dt > 0 && dt <= MAX_DT_MS && step <= MAX_STEP_M;
@@ -230,6 +241,7 @@ export class LapTimer {
   // Acumula distância, amostras para o delta e traçado da volta atual, e verifica os setores.
   advance(t, step, prevMs) {
     this.lapDist += step;
+    this.samplePos.push({ x: t.x, z: t.z });
     // [distância, tempo, km/h, acelerador %, travão %] — delta e gráfico de comparação
     this.samples.push([
       this.lapDist,
@@ -239,8 +251,48 @@ export class LapTimer {
       Math.round(t.brake / 2.55),
     ]);
     const last = this.path[this.path.length - 1];
-    if (Math.hypot(t.x - last.x, t.z - last.z) >= PATH_STEP_M) this.path.push({ x: t.x, z: t.z });
+    if (Math.hypot(t.x - last.x, t.z - last.z) >= PATH_STEP_M) {
+      this.path.push({ x: t.x, z: t.z });
+      this.pathDist.push(this.lapDist);
+    }
     this.checkGate(t, prevMs);
+  }
+
+  // Retroceder: volta ao estado da volta no ponto onde o carro reapareceu (tempo, distância,
+  // traçado e setores), como o próprio jogo faz. Nas corridas o tempo vem do jogo.
+  undoRewind(t) {
+    let best = -1;
+    let bestD = REWIND_MATCH_M;
+    for (let i = 0; i < this.samplePos.length; i++) {
+      const p = this.samplePos[i];
+      const d = Math.hypot(t.x - p.x, t.z - p.z);
+      if (d < bestD) {
+        bestD = d;
+        best = i;
+      }
+    }
+    if (best < 0) return; // reapareceu noutro sítio: não é um retroceder dentro desta volta
+    const [dist, ms] = this.samples[best];
+    if (this.lapDist - dist < REWIND_MIN_BACK_M) return; // pausa: ficou onde estava
+
+    this.samples.length = best + 1;
+    this.samplePos.length = best + 1;
+    this.lapDist = dist;
+    if (!this.gameRace) this.currentMs = ms;
+    while (this.pathDist.length > 1 && this.pathDist[this.pathDist.length - 1] > dist) {
+      this.pathDist.pop();
+      this.path.pop();
+    }
+    while (this.splitMarks.length && this.splitMarks[this.splitMarks.length - 1].dist > dist) {
+      this.splitMarks.pop();
+      this.nextGate--;
+      this.splits.length = this.nextGate;
+      this.splitIdx.length = this.nextGate;
+    }
+    this.splitAtMs = this.splitMarks[this.splitMarks.length - 1]?.atMs ?? 0;
+    this.gatePrevSide = null;
+    this.prevStartDist = Infinity; // não confundir o reaparecimento com uma passagem na partida
+    console.log(`[volta] retroceder: volta reposta em ${Math.round(dist)} m / ${(ms / 1000).toFixed(3)} s`);
   }
 
   // Cada divisão de setor é uma linha perpendicular à pista; o setor fecha quando o carro a cruza.
@@ -255,6 +307,7 @@ export class LapTimer {
       const at = prevMs + f * (this.currentMs - prevMs);
       this.recordSplit(this.nextGate, at - this.splitAtMs);
       this.splitAtMs = at;
+      this.splitMarks.push({ dist: this.lapDist, atMs: at });
       this.splitIdx[this.nextGate] = this.path.length - 1;
       this.nextGate++;
       this.gatePrevSide = null;
