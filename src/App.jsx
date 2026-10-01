@@ -68,14 +68,20 @@ export default function App() {
   else if (timer?.manualPause) status = <p className="status bad">PAUSADO • carrega em «Retomar» para continuar</p>;
   else if (timer?.paused) status = <p className="status bad">TELEMETRIA EM PAUSA • cronómetro congelado</p>;
   else if (timer?.running)
-    status = <p className="status good">{timer.gameTiming ? "A gravar • tempos do jogo" : "A gravar"}</p>;
+    status = (
+      <p className="status good">
+        {timer.gameTiming ? "A gravar • tempos do jogo" : timer.autoDetected && !timer.track ? "A gravar • partida detetada automaticamente" : "A gravar"}
+      </p>
+    );
   else if (timer?.start) status = <p className="status">À espera de passares na partida…</p>;
   else
     status = (
       <p className="status">
-        {tracks.length > 0
-          ? "Passa na partida de uma pista guardada ou carrega em «Definir partida»"
-          : "Conduz até à linha de partida e carrega em «Definir partida»"}
+        {timer?.scouting
+          ? "A procurar circuito… dá uma volta completa e a partida é detetada sozinha"
+          : tracks.length > 0
+            ? "Passa na partida de uma pista guardada ou carrega em «Definir partida»"
+            : "Conduz até à linha de partida e carrega em «Definir partida»"}
       </p>
     );
 

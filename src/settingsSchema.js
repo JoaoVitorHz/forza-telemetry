@@ -3,6 +3,25 @@
 // type: "bool" (interruptor) | "number" (com min/max).
 export const SETTINGS_GROUPS = [
   {
+    title: "Cronómetro",
+    items: [
+      {
+        key: "autoStart",
+        type: "bool",
+        label: "Detetar a partida sozinho",
+        desc: "Ao fechares um circuito (voltar a passar no mesmo ponto, no mesmo sentido), esse ponto passa a ser a partida e a primeira volta conta logo.",
+      },
+      {
+        key: "autoStartMinLength",
+        type: "number",
+        min: 300,
+        max: 10000,
+        label: "Comprimento mínimo do circuito (m)",
+        desc: "Evita detetar voltas a um quarteirão sem querer.",
+      },
+    ],
+  },
+  {
     title: "Painel ao vivo",
     items: [
       { key: "showPedals", type: "bool", label: "Rotações e pedais", desc: "Velocidade, mudança e barras de rotações, acelerador e travão." },

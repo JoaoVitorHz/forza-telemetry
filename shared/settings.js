@@ -1,6 +1,8 @@
 // Definições partilhadas entre o servidor e a interface. Cada funcionalidade opcional
 // tem aqui o seu interruptor e valor por defeito.
 export const DEFAULT_SETTINGS = {
+  autoStart: true,
+  autoStartMinLength: 800,
   showPedals: true,
   showLapHistory: true,
   compareChart: true,

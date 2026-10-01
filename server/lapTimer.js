@@ -12,6 +12,10 @@ const MAX_STEP_M = 50; // salto maior num pacote = teleporte/reinício, não con
 const PATH_STEP_M = 3;
 const SAMPLE_STEP_M = 2; // resolução das amostras guardadas para o delta
 const GATE_RADIUS = 30; // m — largura máxima da "linha" de cada setor
+const SCOUT_STEP_M = 2; // resolução do trajeto guardado à procura de um circuito
+const SCOUT_MAX_POINTS = 20_000; // ~40 km de trajeto
+const LOOP_MATCH_M = 10; // distância para considerar que voltou a passar no mesmo ponto
+const ABANDON_FACTOR = 3; // volta automática com mais do triplo da primeira = saiu do circuito
 const REWIND_MATCH_M = 8; // depois de retroceder o carro reaparece num ponto já percorrido (a menos disto)
 const REWIND_MIN_BACK_M = 5; // recuos menores contam como pausa (o carro ficou no mesmo sítio)
 
@@ -34,6 +38,8 @@ export class LapTimer {
     this.manualPause = false; // botão Pausar: ignora os pacotes até retomar
     this.carKey = null; // ID do carro atual (recordes e setores são por carro)
     this.miniCount = 0; // n.º de mini-setores (0 = desligado), vem das Configurações
+    this.autoStart = true; // deteta a partida sozinho ao fechar um circuito (Configurações)
+    this.autoMinLength = 800; // comprimento mínimo do circuito (m)
     this.onTrackUpdate = null; // chamado quando recorde, setores ou melhores setores mudam
     this.onLapComplete = null; // chamado com cada volta fechada (com traçado), para o histórico
     this.reset();
@@ -41,6 +47,10 @@ export class LapTimer {
 
   reset() {
     this.track = null; // { id, name } se a pista estiver guardada
+    this.autoDetected = false; // partida encontrada sozinha (pista ainda não guardada)
+    this.scout = []; // trajeto à procura de um circuito: { x, z, dir, dist, sample }
+    this.scoutDist = 0;
+    this.scoutMs = 0;
     this.start = null; // { x, z, dir: { x, z } | null }
     this.sectors = null; // divisões S1/S2: [{ x, z, dir }, { x, z, dir }]
     this.trackPath = null; // traçado da pista para o mapa (de qualquer carro)
@@ -95,6 +105,57 @@ export class LapTimer {
     this.armed = false;
     this.prevStartDist = Infinity;
     this.mapVersion++;
+  }
+
+  // Sem partida: guarda o trajeto e procura um ponto por onde o carro já passou, no mesmo
+  // sentido, há pelo menos autoMinLength metros. Isso fecha um circuito: esse ponto passa
+  // a ser a partida e o percurso desde lá conta como primeira volta.
+  scoutStep(t, prev, dt, step) {
+    this.scoutMs += dt;
+    this.scoutDist += step;
+    const last = this.scout[this.scout.length - 1];
+    if (last && this.scoutDist - last.dist < SCOUT_STEP_M) return;
+    const dir = step > 0.05 ? { x: (t.x - prev.x) / step, z: (t.z - prev.z) / step } : null;
+    const point = {
+      x: t.x,
+      z: t.z,
+      dir,
+      dist: this.scoutDist,
+      sample: [this.scoutDist, this.scoutMs, Math.round(t.speed * 3.6), Math.round(t.throttle / 2.55), Math.round(t.brake / 2.55)],
+    };
+
+    if (dir) {
+      const limit = this.scoutDist - this.autoMinLength;
+      for (let i = 0; i < this.scout.length && this.scout[i].dist <= limit; i++) {
+        const p = this.scout[i];
+        if (!p.dir || Math.hypot(t.x - p.x, t.z - p.z) > LOOP_MATCH_M) continue;
+        if (p.dir.x * dir.x + p.dir.z * dir.z < 0.8) continue; // mesmo ponto, outro sentido (cruzamento)
+        this.startFromLoop(i, t);
+        return;
+      }
+    }
+    this.scout.push(point);
+    if (this.scout.length > SCOUT_MAX_POINTS) this.scout.shift();
+  }
+
+  startFromLoop(i, t) {
+    const from = this.scout[i];
+    const loop = this.scout.slice(i);
+    this.start = { x: from.x, z: from.z, dir: from.dir };
+    this.autoDetected = true;
+    this.lapNumber = 0;
+    this.beginLap();
+    // O percurso desde a partida encontrada é a primeira volta (distância e tempo a partir de lá).
+    this.samples = loop.map((p) => [p.dist - from.dist, p.sample[1] - from.sample[1], ...p.sample.slice(2)]);
+    this.samplePos = loop.map((p) => ({ x: p.x, z: p.z }));
+    this.path = loop.map((p) => ({ x: p.x, z: p.z }));
+    this.pathDist = loop.map((p) => p.dist - from.dist);
+    this.lapDist = this.scoutDist - from.dist;
+    this.currentMs = this.scoutMs - from.sample[1];
+    this.scout = [];
+    this.mapVersion++;
+    console.log(`[volta] circuito detetado: ${Math.round(this.lapDist)} m, primeira volta ${(this.currentMs / 1000).toFixed(3)} s`);
+    this.completeLap(this.currentMs, t);
   }
 
   // Partida manual no sítio onde o carro está; a volta começa já.
@@ -181,7 +242,14 @@ export class LapTimer {
       this.updateRace(t, prev, validStep ? step : 0);
       return;
     }
-    if (!this.start || !validStep) return;
+    if (!validStep) {
+      if (step > MAX_STEP_M) this.scout = []; // teleporte: o trajeto anterior já não serve
+      return;
+    }
+    if (!this.start) {
+      if (this.autoStart) this.scoutStep(t, prev, dt, step);
+      return;
+    }
 
     // Partida manual com o carro parado: o sentido da pista é o do primeiro movimento.
     if (!this.start.dir && step > 0.1) {
@@ -201,6 +269,14 @@ export class LapTimer {
     const prevMs = this.currentMs;
     this.currentMs += dt;
     this.advance(t, step, prevMs);
+
+    // Partida automática não guardada e volta muito mais longa que a primeira: o carro saiu
+    // do circuito. Descarta-a e volta a procurar.
+    if (this.autoDetected && !this.track && this.ref && this.currentMs > this.ref.ms * ABANDON_FACTOR) {
+      console.log("[volta] saiu do circuito detetado; a procurar outro");
+      this.reset();
+      return;
+    }
 
     if (!this.armed && d > ARM_DISTANCE) this.armed = true;
     if (this.armed && crossing && this.currentMs > MIN_LAP_MS) this.completeLap();
@@ -415,6 +491,8 @@ export class LapTimer {
       paused: this.paused,
       running: this.running,
       gameTiming: this.gameRace,
+      autoDetected: this.autoDetected,
+      scouting: !this.start && !this.gameRace && this.autoStart,
       lapNumber: this.lapNumber,
       currentMs: this.currentMs,
       deltaMs: this.deltaMs(),

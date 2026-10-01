@@ -18,6 +18,8 @@ const cars = new CarStore();
 const settings = new SettingsStore();
 const applySettings = () => {
   timer.miniCount = settings.values.miniSectors ? settings.values.miniSectorCount : 0;
+  timer.autoStart = settings.values.autoStart;
+  timer.autoMinLength = settings.values.autoStartMinLength;
 };
 applySettings();
 
