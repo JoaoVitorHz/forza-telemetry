@@ -17,6 +17,13 @@ export function parsePacket(buf) {
     y: buf.readFloatLE(dash + 4),
     z: buf.readFloatLE(dash + 8),
     speed: buf.readFloatLE(dash + 12), // m/s
+    // Tempos do próprio jogo (segundos); só preenchidos durante corridas.
+    bestLap: buf.readFloatLE(dash + 52),
+    lastLap: buf.readFloatLE(dash + 56),
+    currentLap: buf.readFloatLE(dash + 60),
+    currentRaceTime: buf.readFloatLE(dash + 64),
+    lapNumber: buf.readUInt16LE(dash + 68),
+    racePosition: buf.readUInt8(dash + 70),
     throttle: buf.readUInt8(dash + 71), // 0-255
     brake: buf.readUInt8(dash + 72),
     gear: buf.readUInt8(dash + 75),

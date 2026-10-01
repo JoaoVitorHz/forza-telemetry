@@ -1,13 +1,24 @@
 import dgram from "node:dgram";
 import { WebSocketServer } from "ws";
 import { parsePacket } from "./parser.js";
-import { LapTimer } from "./lapTimer.js";
+import { LapTimer, START_RADIUS } from "./lapTimer.js";
+import { TrackStore } from "./trackStore.js";
 
 const UDP_PORT = Number(process.env.FORZA_PORT) || 8005;
 const WS_PORT = Number(process.env.WS_PORT) || 8080;
 const BROADCAST_MS = 33; // ~30 atualizações/s para a interface
+const DETECT_RADIUS = START_RADIUS * 2; // carrega a pista antes de chegar à partida
 
 const timer = new LapTimer();
+const store = new TrackStore();
+
+// Novo recorde numa pista guardada: grava logo no ficheiro.
+timer.onRecord = () => {
+  if (!timer.track) return;
+  store.update(timer.track.id, { best: timer.ref });
+  console.log(`[pistas] novo recorde em "${timer.track.name}"`);
+  broadcastTracks();
+};
 let latest = null;
 let lastPacketAt = 0;
 let loggedLength = false;
@@ -33,6 +44,23 @@ udp.on("message", (buf, rinfo) => {
   }
   const t = parsePacket(buf);
   if (!t) return;
+  if (latest && t.isRaceOn) {
+    if (timer.gameRace) {
+      // Corrida do jogo sem pista associada: associa a pista guardada cuja partida esteja perto.
+      const near = !timer.track && store.findNear(t, latest, DETECT_RADIUS);
+      if (near) {
+        timer.attachTrack(near);
+        console.log(`[pistas] pista detetada na corrida: "${near.name}"`);
+      }
+    } else if (!timer.start || (timer.track && !timer.running)) {
+      // Sem pista ativa (ou à espera da partida): procura uma pista guardada cuja partida esteja perto.
+      const near = store.findNear(t, latest, DETECT_RADIUS, timer.track?.id);
+      if (near) {
+        timer.loadTrack(near);
+        console.log(`[pistas] pista detetada: "${near.name}"`);
+      }
+    }
+  }
   timer.update(t);
   latest = t;
   lastPacketAt = Date.now();
@@ -56,8 +84,13 @@ function broadcast(msg) {
   for (const ws of wss.clients) if (ws.readyState === ws.OPEN) ws.send(data);
 }
 
+function broadcastTracks() {
+  broadcast({ type: "tracks", tracks: store.summary() });
+}
+
 wss.on("connection", (ws) => {
   send(ws, { type: "map", ...timer.mapData() });
+  send(ws, { type: "tracks", tracks: store.summary() });
   ws.on("message", (raw) => {
     let msg;
     try {
@@ -67,6 +100,20 @@ wss.on("connection", (ws) => {
     }
     if (msg.type === "setStart" && latest) timer.setStart(latest);
     else if (msg.type === "reset") timer.reset();
+    else if (msg.type === "saveTrack" && timer.start && !timer.track) {
+      const name = String(msg.name ?? "").trim().slice(0, 60) || `Pista ${store.tracks.length + 1}`;
+      const track = store.add({ name, start: timer.start, best: timer.ref });
+      timer.track = { id: track.id, name: track.name };
+      console.log(`[pistas] guardada: "${name}"`);
+      broadcastTracks();
+    } else if (msg.type === "loadTrack") {
+      const track = store.get(msg.id);
+      if (track) timer.loadTrack(track);
+    } else if (msg.type === "deleteTrack") {
+      store.remove(msg.id);
+      if (timer.track?.id === msg.id) timer.track = null;
+      broadcastTracks();
+    }
   });
 });
 

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 export function useTelemetry(url) {
   const [state, setState] = useState(null);
   const [map, setMap] = useState(null);
+  const [tracks, setTracks] = useState([]);
   const [online, setOnline] = useState(false);
   const wsRef = useRef(null);
 
@@ -24,6 +25,7 @@ export function useTelemetry(url) {
         const msg = JSON.parse(e.data);
         if (msg.type === "state") setState(msg);
         else if (msg.type === "map") setMap(msg);
+        else if (msg.type === "tracks") setTracks(msg.tracks);
       };
     };
     connect();
@@ -40,5 +42,5 @@ export function useTelemetry(url) {
     if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify(msg));
   }, []);
 
-  return { state, map, online, send };
+  return { state, map, tracks, online, send };
 }

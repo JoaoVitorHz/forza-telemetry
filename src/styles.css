@@ -152,3 +152,58 @@ button:disabled {
   height: auto;
   display: block;
 }
+
+.tracks {
+  margin-top: 16px;
+  border-top: 1px solid #222;
+  padding-top: 14px;
+}
+.tracks ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.tracks li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px;
+  border-radius: 4px;
+}
+.tracks li.active {
+  background: #1a1430;
+  outline: 1px solid #b57bff55;
+}
+.tracks .name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tracks .record {
+  color: #b57bff;
+  font-variant-numeric: tabular-nums;
+}
+.tracks li button {
+  padding: 4px 8px;
+}
+.save {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.save input {
+  flex: 1;
+  min-width: 0;
+  background: #111;
+  color: #eee;
+  border: 1px solid #333;
+  border-radius: 4px;
+  padding: 8px;
+}
+.hint {
+  font-size: 13px;
+  color: #888;
+  margin: 0;
+}
