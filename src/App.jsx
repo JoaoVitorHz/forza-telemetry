@@ -30,7 +30,7 @@ function Bar({ value, color }) {
 }
 
 export default function App() {
-  const { state, map, tracks, lapDetail, trackView, savedLap, carNames, settings, online, send } = useTelemetry(WS_URL);
+  const { state, map, tracks, lapDetail, trackView, savedLap, carNames, settings, network, online, send } = useTelemetry(WS_URL);
   const t = state?.telemetry;
   const timer = state?.timer;
 
@@ -103,7 +103,7 @@ export default function App() {
     return (
       <>
         {topbar}
-        <Settings settings={settings} send={send} />
+        <Settings settings={settings} network={network} send={send} />
       </>
     );
   }

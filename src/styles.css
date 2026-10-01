@@ -623,3 +623,18 @@ body.overlay-body {
 .overlay .map {
   margin-top: 8px;
 }
+
+.setting-warn {
+  font-size: 13px;
+  color: #f39c12;
+}
+.lan-url {
+  display: inline-block;
+  margin: 2px 6px 0 0;
+  padding: 2px 6px;
+  background: #1a1a1a;
+  border: 1px solid #333;
+  border-radius: 4px;
+  color: #4da3ff;
+  user-select: all;
+}

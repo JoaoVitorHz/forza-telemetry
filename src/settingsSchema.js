@@ -21,6 +21,18 @@ export const SETTINGS_GROUPS = [
     ],
   },
   {
+    title: "Rede",
+    items: [
+      {
+        key: "lanAccess",
+        type: "bool",
+        restart: true,
+        label: "Acesso pelo telemóvel/tablet",
+        desc: "Permite abrir a página noutro dispositivo na mesma rede Wi-Fi. Reinicia o npm run dev depois de mudar.",
+      },
+    ],
+  },
+  {
     title: "Overlay (npm run overlay)",
     items: [
       { key: "overlaySectors", type: "bool", label: "Setores no overlay", desc: "Mostra S1, S2 e S3 com as cores." },

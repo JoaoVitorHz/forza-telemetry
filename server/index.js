@@ -1,4 +1,5 @@
 import dgram from "node:dgram";
+import os from "node:os";
 import { WebSocketServer } from "ws";
 import { parsePacket } from "./parser.js";
 import { LapTimer, START_RADIUS } from "./lapTimer.js";
@@ -134,9 +135,20 @@ udp.on("error", (err) => {
 });
 udp.bind(UDP_PORT, () => console.log(`[udp] à escuta na porta ${UDP_PORT}`));
 
-const wss = new WebSocketServer({ port: WS_PORT }, () =>
-  console.log(`[ws] servidor em ws://localhost:${WS_PORT}`),
+// Sem acesso na rede, o WebSocket só aceita ligações do próprio PC. Mudar exige reiniciar.
+const lanAccess = settings.values.lanAccess;
+const wss = new WebSocketServer({ port: WS_PORT, host: lanAccess ? undefined : "127.0.0.1" }, () =>
+  console.log(`[ws] servidor em ws://localhost:${WS_PORT}${lanAccess ? " (acesso na rede ativo)" : ""}`),
 );
+
+// Endereços para abrir a página noutro dispositivo da mesma rede.
+function lanUrls() {
+  return Object.values(os.networkInterfaces())
+    .flat()
+    .filter((i) => i && i.family === "IPv4" && !i.internal)
+    .map((i) => `http://${i.address}:5173`);
+}
+if (lanAccess) console.log(`[rede] abre no telemóvel: ${lanUrls().join("  ou  ")}`);
 
 function send(ws, msg) {
   if (ws.readyState === ws.OPEN) ws.send(JSON.stringify(msg));
@@ -156,6 +168,7 @@ wss.on("connection", (ws) => {
   send(ws, { type: "tracks", tracks: store.summary() });
   send(ws, { type: "cars", names: cars.names });
   send(ws, { type: "settings", values: settings.values });
+  send(ws, { type: "network", lanActive: lanAccess, urls: lanAccess ? lanUrls() : [] });
   ws.on("message", (raw) => {
     let msg;
     try {

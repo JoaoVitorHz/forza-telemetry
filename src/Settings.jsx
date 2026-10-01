@@ -1,7 +1,7 @@
 import { SETTINGS_GROUPS } from "./settingsSchema.js";
 
 // Aba Configurações: ativa/desativa cada funcionalidade. Grava no servidor ao mudar.
-export default function Settings({ settings, send }) {
+export default function Settings({ settings, network, send }) {
   const set = (key, value) => send({ type: "setSettings", patch: { [key]: value } });
 
   return (
@@ -17,6 +17,7 @@ export default function Settings({ settings, send }) {
                   {item.restart && <span className="setting-tag">requer reiniciar</span>}
                 </span>
                 {item.desc && <span className="setting-desc">{item.desc}</span>}
+                {item.key === "lanAccess" && <LanInfo settings={settings} network={network} />}
               </div>
               {item.type === "bool" ? (
                 <label className="switch">
@@ -41,5 +42,23 @@ export default function Settings({ settings, send }) {
         </section>
       ))}
     </div>
+  );
+}
+
+function LanInfo({ settings, network }) {
+  if (!network) return null;
+  if (settings.lanAccess !== network.lanActive) {
+    return <span className="setting-warn">Reinicia o npm run dev para aplicar.</span>;
+  }
+  if (!network.lanActive) return null;
+  return (
+    <span className="setting-desc">
+      Abre no telemóvel:{" "}
+      {network.urls.map((url) => (
+        <code key={url} className="lan-url">
+          {url}
+        </code>
+      ))}
+    </span>
   );
 }
