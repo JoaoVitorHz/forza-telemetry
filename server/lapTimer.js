@@ -28,17 +28,49 @@ export class LapTimer {
     this.gameRace = false; // numa corrida oficial: os tempos vêm do próprio jogo
     this.gameLap = 0;
     this.manualPause = false; // botão Pausar: ignora os pacotes até retomar
+    this.carKey = null; // ID do carro atual (recordes e setores são por carro)
     this.onTrackUpdate = null; // chamado quando recorde, setores ou melhores setores mudam
+    this.onLapComplete = null; // chamado com cada volta fechada (com traçado), para o histórico
     this.reset();
   }
 
   reset() {
     this.track = null; // { id, name } se a pista estiver guardada
     this.start = null; // { x, z, dir: { x, z } | null }
-    this.ref = null; // recorde: { ms, samples: [[dist, ms]], path: [{x, z}] }
     this.sectors = null; // divisões S1/S2: [{ x, z, dir }, { x, z, dir }]
-    this.bestSectors = emptySectors(); // melhores de sempre nesta pista (ms)
+    this.trackPath = null; // traçado da pista para o mapa (de qualquer carro)
+    this.records = {}; // por carro: { [carKey]: { best, bestSectors } }
+    this.applyCar();
     this.resetLaps();
+  }
+
+  // Recorde e melhores setores do carro atual:
+  // ref = { ms, samples: [[dist, ms]], path: [{x, z}] }, bestSectors = [ms, ms, ms]
+  applyCar() {
+    const record = this.records[this.carKey];
+    this.ref = record?.best ?? null;
+    this.bestSectors = [...(record?.bestSectors ?? emptySectors())];
+  }
+
+  // Grava o recorde/melhores setores do carro atual na tabela de recordes da pista.
+  commitRecord() {
+    if (this.carKey == null) return;
+    this.records[this.carKey] = { best: this.ref, bestSectors: [...this.bestSectors] };
+    if (!this.trackPath && this.ref) this.trackPath = this.ref.path;
+  }
+
+  // Troca de carro: passa a comparar com os recordes desse carro e começa uma sessão nova para ele.
+  setCar(key) {
+    if (key === this.carKey) return;
+    const first = this.carKey == null;
+    this.carKey = key;
+    this.applyCar();
+    if (first) return;
+    this.sessionBestMs = null;
+    this.sessionSectors = emptySectors();
+    if (!this.gameRace) this.running = false; // espera pela próxima passagem na partida
+    this.prevStartDist = Infinity;
+    this.mapVersion++;
   }
 
   resetLaps() {
@@ -72,9 +104,10 @@ export class LapTimer {
     this.reset();
     this.track = { id: track.id, name: track.name };
     this.start = track.start;
-    this.ref = track.best ?? null;
     this.sectors = track.sectors ?? null;
-    this.bestSectors = [...(track.bestSectors ?? emptySectors())];
+    this.trackPath = track.path ?? null;
+    this.records = structuredClone(track.records ?? {});
+    this.applyCar();
     if (this.ensureSectors()) this.onTrackUpdate?.(this);
   }
 
@@ -83,10 +116,14 @@ export class LapTimer {
   attachTrack(track) {
     this.track = { id: track.id, name: track.name };
     this.start = track.start;
-    if (track.best && (!this.ref || track.best.ms <= this.ref.ms)) this.ref = track.best;
     this.sectors = track.sectors ?? this.sectors;
-    const saved = track.bestSectors ?? emptySectors();
-    this.bestSectors = this.bestSectors.map((ms, i) => minOrNull(ms, saved[i]));
+    this.trackPath = track.path ?? this.trackPath;
+    const saved = track.records?.[this.carKey];
+    if (saved?.best && (!this.ref || saved.best.ms <= this.ref.ms)) this.ref = saved.best;
+    const savedSectors = saved?.bestSectors ?? emptySectors();
+    this.bestSectors = this.bestSectors.map((ms, i) => minOrNull(ms, savedSectors[i]));
+    this.records = { ...structuredClone(track.records ?? {}) };
+    this.commitRecord();
     this.ensureSectors();
     this.mapVersion++;
     this.onTrackUpdate?.(this);
@@ -113,6 +150,7 @@ export class LapTimer {
     this.prev = t;
     this.paused = !t.isRaceOn;
     if (!t.isRaceOn || this.manualPause) return;
+    this.setCar(String(t.carOrdinal));
 
     // Corrida oficial: o jogo envia os tempos de volta; fora dela vêm a zero.
     const inRace = t.currentRaceTime > 0;
@@ -235,27 +273,34 @@ export class LapTimer {
     // Histórico com as cores do momento (como nos ecrãs de tempos da F1).
     const lapColor =
       !this.ref || lap < this.ref.ms ? "purple" : this.sessionBestMs == null || lap < this.sessionBestMs ? "green" : "yellow";
-    this.laps.push({ n: this.lapNumber, ms: lap, color: lapColor, splits: this.splits });
+    this.laps.push({ n: this.lapNumber, ms: lap, color: lapColor, splits: this.splits, car: this.carKey });
     this.path.push({ x: pos.x, z: pos.z });
-    this.lapPaths.set(this.lapNumber, { path: this.path.map((p) => ({ x: round1(p.x), z: round1(p.z) })), splitIdx: this.splitIdx });
+    const lapPath = this.path.map((p) => ({ x: round1(p.x), z: round1(p.z) }));
+    const lapSamples = downsample(this.samples);
+    this.lapPaths.set(this.lapNumber, { path: lapPath, splitIdx: this.splitIdx, samples: lapSamples });
     if (this.laps.length > MAX_LAP_HISTORY) this.lapPaths.delete(this.laps.shift().n);
 
     this.lastLapMs = lap;
     if (this.sessionBestMs == null || lap < this.sessionBestMs) this.sessionBestMs = lap;
     if (!this.ref || lap < this.ref.ms) {
-      this.ref = { ms: lap, samples: downsample(this.samples), path: this.path.map((p) => ({ x: round1(p.x), z: round1(p.z) })) };
+      this.ref = { ms: lap, samples: lapSamples, path: lapPath };
       this.mapVersion++;
       changed = true;
     }
     if (this.ensureSectors()) changed = true;
-    if (changed) this.onTrackUpdate?.(this);
+    if (changed) {
+      this.commitRecord();
+      this.onTrackUpdate?.(this);
+    }
+    this.onLapComplete?.(this.getLap(this.lapNumber));
     this.beginLap(pos);
   }
 
   // Cria as divisões S1/S2 (a 1/3 e 2/3 do traçado de referência) se ainda não existirem.
   ensureSectors() {
-    if (this.sectors || !this.ref?.path || this.ref.path.length < 10) return false;
-    this.sectors = computeSectors(this.ref.path);
+    const path = this.ref?.path ?? this.trackPath;
+    if (this.sectors || !path || path.length < 10) return false;
+    this.sectors = computeSectors(path);
     this.mapVersion++;
     return true;
   }
@@ -281,6 +326,7 @@ export class LapTimer {
     const b = this.bestSectors;
     return {
       track: this.track,
+      car: this.carKey,
       start: this.start,
       paused: this.paused,
       running: this.running,
@@ -312,7 +358,7 @@ export class LapTimer {
   }
 
   mapData() {
-    return { start: this.start, refPath: this.ref?.path ?? null, sectors: this.sectors, mapVersion: this.mapVersion };
+    return { start: this.start, refPath: this.ref?.path ?? this.trackPath, sectors: this.sectors, mapVersion: this.mapVersion };
   }
 }
 

@@ -21,8 +21,15 @@ export default function LapHistory({ laps, selected, onSelect }) {
             </tr>
           </thead>
           <tbody>
-            {[...laps].reverse().map((lap) => (
-              <tr key={lap.n} onClick={() => onSelect(lap.n)} className={lap.n === selected ? "selected" : ""}>
+            {[...laps].reverse().map((lap) => {
+              const key = lap.id ?? lap.n; // voltas guardadas têm id; as da sessão usam o número
+              return (
+              <tr
+                key={key}
+                onClick={() => onSelect(key)}
+                className={key === selected ? "selected" : ""}
+                title={lap.at ? new Date(lap.at).toLocaleString() : undefined}
+              >
                 <td className="lap-n">{lap.n}</td>
                 <td className={lap.color}>{fmtTime(lap.ms)}</td>
                 {[0, 1, 2].map((i) => {
@@ -34,7 +41,8 @@ export default function LapHistory({ laps, selected, onSelect }) {
                   );
                 })}
               </tr>
-            ))}
+              );
+            })}
           </tbody>
         </table>
       </div>

@@ -1,13 +1,14 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTelemetry } from "./useTelemetry.js";
 import TrackMap from "./TrackMap.jsx";
 import Tracks from "./Tracks.jsx";
 import Sectors from "./Sectors.jsx";
 import LapHistory from "./LapHistory.jsx";
+import TrackView from "./TrackView.jsx";
 import { fmtDelta, fmtTime } from "./format.js";
+import { askCarName, carLabel } from "./cars.js";
 
 const WS_URL = `ws://${location.hostname}:8080`;
-const CLASSES = ["D", "C", "B", "A", "S1", "S2", "X"];
 
 function Row({ label, value, className }) {
   return (
@@ -27,9 +28,17 @@ function Bar({ value, color }) {
 }
 
 export default function App() {
-  const { state, map, tracks, lapDetail, online, send } = useTelemetry(WS_URL);
+  const { state, map, tracks, lapDetail, trackView, savedLap, carNames, online, send } = useTelemetry(WS_URL);
   const t = state?.telemetry;
   const timer = state?.timer;
+
+  // Seletor no topo: null = ao vivo; id = ver uma pista guardada.
+  const [view, setView] = useState(null);
+  const viewExists = view != null && tracks.some((tr) => tr.id === view);
+  // Pede os dados da pista ao escolher e sempre que a lista muda (nova volta, novo recorde).
+  useEffect(() => {
+    if (viewExists) send({ type: "getTrackView", id: view });
+  }, [view, viewExists, tracks, online, send]);
 
   // Volta escolhida no histórico para ver no mapa (null = ao vivo).
   const [selectedLap, setSelectedLap] = useState(null);
@@ -60,66 +69,106 @@ export default function App() {
   const delta = timer?.deltaMs;
   const deltaClass = delta == null ? "" : delta < 0 ? "faster" : "slower";
 
+  const topbar = (
+    <header className="topbar">
+      <span className="brand">Forza Telemetry</span>
+      <label>
+        Pista:{" "}
+        <select value={viewExists ? view : ""} onChange={(e) => setView(e.target.value || null)}>
+          <option value="">Ao vivo</option>
+          {tracks.map((tr) => (
+            <option key={tr.id} value={tr.id}>
+              {tr.name}
+              {tr.recordMs != null ? ` — ${fmtTime(tr.recordMs)}` : ""}
+            </option>
+          ))}
+        </select>
+      </label>
+    </header>
+  );
+
+  if (viewExists) {
+    return (
+      <>
+        {topbar}
+        <TrackView
+          view={trackView?.id === view ? trackView : null}
+          savedLap={savedLap}
+          activeTrackId={timer?.track?.id}
+          liveCar={timer?.car}
+          carNames={carNames}
+          send={send}
+        />
+      </>
+    );
+  }
+
   return (
-    <div className="app">
-      <section className="panel">
-        <h1>{timer?.track?.name ?? "Lap Timer"}</h1>
-        {status}
-        {t && (
-          <p className="car">
-            Carro #{t.carOrdinal} • {CLASSES[t.carClass] ?? "?"} {t.carPI}
-          </p>
-        )}
-
-        <Row label="VOLTA" value={timer?.lapNumber || "-"} />
-        <Row label="ATUAL" value={fmtTime(timer?.running ? timer.currentMs : null)} />
-        <Row label="DELTA" value={fmtDelta(delta)} className={deltaClass} />
-        <Row label="ÚLTIMA" value={fmtTime(timer?.lastLapMs)} />
-        <Row label="MELHOR (SESSÃO)" value={fmtTime(timer?.sessionBestMs)} />
-        <Row label="RECORDE" value={fmtTime(timer?.recordMs)} className="best" />
-
-        <Sectors sectors={timer?.sectors} />
-
-        {t && (
-          <div className="live">
-            <div className="speed">
-              <span>{Math.round(t.speedKmh)}</span> km/h
-              <span className="gear">{t.gear === 0 ? "R" : t.gear}</span>
+    <>
+      {topbar}
+      <div className="app">
+        <section className="panel">
+          <h1>{timer?.track?.name ?? "Lap Timer"}</h1>
+          {status}
+          {t && (
+            <p className="car">
+              {carLabel(String(t.carOrdinal), carNames, { class: t.carClass, pi: t.carPI })}
+              <button className="link" onClick={() => askCarName(String(t.carOrdinal), carNames, send)} title="Dar nome ao carro">
+                ✎
+              </button>
+            </p>
+          )}
+  
+          <Row label="VOLTA" value={timer?.lapNumber || "-"} />
+          <Row label="ATUAL" value={fmtTime(timer?.running ? timer.currentMs : null)} />
+          <Row label="DELTA" value={fmtDelta(delta)} className={deltaClass} />
+          <Row label="ÚLTIMA" value={fmtTime(timer?.lastLapMs)} />
+          <Row label="MELHOR (SESSÃO)" value={fmtTime(timer?.sessionBestMs)} />
+          <Row label="RECORDE" value={fmtTime(timer?.recordMs)} className="best" />
+  
+          <Sectors sectors={timer?.sectors} />
+  
+          {t && (
+            <div className="live">
+              <div className="speed">
+                <span>{Math.round(t.speedKmh)}</span> km/h
+                <span className="gear">{t.gear === 0 ? "R" : t.gear}</span>
+              </div>
+              <Bar value={t.maxRpm ? t.rpm / t.maxRpm : 0} color="#f1c40f" />
+              <Bar value={t.throttle} color="#2ecc71" />
+              <Bar value={t.brake} color="#e74c3c" />
             </div>
-            <Bar value={t.maxRpm ? t.rpm / t.maxRpm : 0} color="#f1c40f" />
-            <Bar value={t.throttle} color="#2ecc71" />
-            <Bar value={t.brake} color="#e74c3c" />
+          )}
+  
+          <div className="buttons">
+            <button onClick={() => send({ type: "setStart" })} disabled={!state?.receiving}>
+              Definir partida
+            </button>
+            <button onClick={() => send({ type: "togglePause" })} className={timer?.manualPause ? "active" : ""}>
+              {timer?.manualPause ? "Retomar" : "Pausar"}
+            </button>
+            <button
+              onClick={() => {
+                send({ type: "reset" });
+                setSelectedLap(null);
+              }}
+            >
+              Reiniciar
+            </button>
           </div>
-        )}
-
-        <div className="buttons">
-          <button onClick={() => send({ type: "setStart" })} disabled={!state?.receiving}>
-            Definir partida
-          </button>
-          <button onClick={() => send({ type: "togglePause" })} className={timer?.manualPause ? "active" : ""}>
-            {timer?.manualPause ? "Retomar" : "Pausar"}
-          </button>
-          <button
-            onClick={() => {
-              send({ type: "reset" });
-              setSelectedLap(null);
-            }}
-          >
-            Reiniciar
-          </button>
-        </div>
-
-        <LapHistory laps={timer?.laps} selected={selectedLap} onSelect={selectLap} />
-      </section>
-
-      <section className="panel">
-        <div className="map-header">
-          <h2>{viewedLap ? `MAPA • VOLTA ${viewedLap.n} • ${fmtTime(viewedLap.ms)}` : "MAPA"}</h2>
-          {selectedLap != null && <button onClick={() => setSelectedLap(null)}>Ao vivo</button>}
-        </div>
-        <TrackMap map={map} pos={t} lapNumber={timer?.lapNumber} lap={viewedLap} />
-        <Tracks tracks={tracks} timer={timer} send={send} />
-      </section>
-    </div>
+  
+          <LapHistory laps={timer?.laps} selected={selectedLap} onSelect={selectLap} />
+        </section>
+  
+        <section className="panel">
+          <div className="map-header">
+            <h2>{viewedLap ? `MAPA • VOLTA ${viewedLap.n} • ${fmtTime(viewedLap.ms)}` : "MAPA"}</h2>
+            {selectedLap != null && <button onClick={() => setSelectedLap(null)}>Ao vivo</button>}
+          </div>
+          <TrackMap map={map} pos={t} lapNumber={timer?.lapNumber} lap={viewedLap} />
+          <Tracks tracks={tracks} timer={timer} send={send} />
+        </section>
+      </div>
+    </>
   );
 }

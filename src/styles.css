@@ -343,3 +343,64 @@ button.active {
   background: #3a2a10;
   border-color: #f39c12;
 }
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+  padding: 12px 16px 0;
+  max-width: 1100px;
+}
+.topbar .brand {
+  font-weight: 700;
+  font-size: 15px;
+  color: #bbb;
+}
+.topbar label {
+  font-size: 13px;
+  color: #888;
+}
+.topbar select {
+  background: #141414;
+  color: #eee;
+  border: 1px solid #333;
+  border-radius: 4px;
+  padding: 6px 8px;
+  font: inherit;
+  font-size: 14px;
+  max-width: 70vw;
+}
+.view-loading {
+  padding: 16px;
+}
+
+button.link {
+  background: none;
+  border: none;
+  color: #888;
+  padding: 0 6px;
+  font-size: 14px;
+}
+button.link:hover:not(:disabled) {
+  background: none;
+  color: #eee;
+}
+.car-select {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin: 4px 0 6px;
+}
+.car-select select {
+  flex: 1;
+  min-width: 0;
+  background: #141414;
+  color: #eee;
+  border: 1px solid #333;
+  border-radius: 4px;
+  padding: 6px 8px;
+  font: inherit;
+  font-size: 14px;
+}

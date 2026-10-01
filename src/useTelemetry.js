@@ -6,6 +6,9 @@ export function useTelemetry(url) {
   const [map, setMap] = useState(null);
   const [tracks, setTracks] = useState([]);
   const [lapDetail, setLapDetail] = useState(null);
+  const [trackView, setTrackView] = useState(null);
+  const [savedLap, setSavedLap] = useState(null);
+  const [carNames, setCarNames] = useState({});
   const [online, setOnline] = useState(false);
   const wsRef = useRef(null);
 
@@ -28,6 +31,9 @@ export function useTelemetry(url) {
         else if (msg.type === "map") setMap(msg);
         else if (msg.type === "tracks") setTracks(msg.tracks);
         else if (msg.type === "lap") setLapDetail(msg.lap);
+        else if (msg.type === "trackView") setTrackView(msg.view);
+        else if (msg.type === "savedLap") setSavedLap(msg.lap);
+        else if (msg.type === "cars") setCarNames(msg.names);
       };
     };
     connect();
@@ -44,5 +50,5 @@ export function useTelemetry(url) {
     if (ws?.readyState === WebSocket.OPEN) ws.send(JSON.stringify(msg));
   }, []);
 
-  return { state, map, tracks, lapDetail, online, send };
+  return { state, map, tracks, lapDetail, trackView, savedLap, carNames, online, send };
 }
