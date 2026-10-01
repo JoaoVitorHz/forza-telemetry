@@ -7,8 +7,6 @@ export const DEFAULT_SETTINGS = {
   ghost: true,
   miniSectors: true,
   miniSectorCount: 12,
-  stats: true,
-  statsExcludeSlow: true,
   exportImport: true,
   exportIncludeLaps: true,
   sound: false,

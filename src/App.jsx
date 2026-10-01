@@ -8,7 +8,6 @@ import TrackView from "./TrackView.jsx";
 import Settings from "./Settings.jsx";
 import CompareChart from "./CompareChart.jsx";
 import LapColorToggle from "./LapColorToggle.jsx";
-import Stats from "./Stats.jsx";
 import { useAnnouncer } from "./sound.js";
 import { miniSectorColors } from "../shared/miniSectors.js";
 import { fmtDelta, fmtTime } from "./format.js";
@@ -192,7 +191,6 @@ export default function App() {
             </button>
           </div>
 
-          {settings.stats && <Stats laps={timer?.laps} excludeSlow={settings.statsExcludeSlow} />}
           {settings.showLapHistory && <LapHistory laps={timer?.laps} selected={selectedLap} onSelect={selectLap} />}
         </section>
 
