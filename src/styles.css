@@ -793,3 +793,31 @@ body.overlay-body {
 .stats .hint {
   margin-top: 6px;
 }
+
+.import {
+  display: inline-block;
+  margin-top: 12px;
+}
+.import input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+}
+.import span {
+  display: inline-block;
+  background: #1b1b1b;
+  color: #eee;
+  border: 1px solid #333;
+  border-radius: 4px;
+  padding: 8px 12px;
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+}
+.import span:hover {
+  background: #262626;
+}
+.import input:focus-visible + span {
+  outline: 2px solid #4da3ff;
+}

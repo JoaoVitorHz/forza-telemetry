@@ -2,7 +2,7 @@ import { useState } from "react";
 import { fmtTime } from "./format.js";
 
 // Guardar a pista atual e gerir as pistas guardadas.
-export default function Tracks({ tracks, timer, send }) {
+export default function Tracks({ tracks, timer, settings, send }) {
   const [name, setName] = useState("");
   const canSave = timer?.start && !timer.track;
 
@@ -10,6 +10,20 @@ export default function Tracks({ tracks, timer, send }) {
     e.preventDefault();
     send({ type: "saveTrack", name });
     setName("");
+  };
+
+  const exportTrack = (track) => send({ type: "exportTrack", id: track.id, includeLaps: settings.exportIncludeLaps });
+
+  // Lê o ficheiro escolhido e envia-o ao servidor, que cria uma pista nova.
+  const importFile = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file) return;
+    try {
+      send({ type: "importTrack", data: JSON.parse(await file.text()) });
+    } catch {
+      alert("Este ficheiro não é um JSON válido.");
+    }
   };
 
   const remove = (track) => {
@@ -41,12 +55,24 @@ export default function Tracks({ tracks, timer, send }) {
               <button onClick={() => send({ type: "loadTrack", id: tr.id })} title="Usar esta pista">
                 Usar
               </button>
+              {settings.exportImport && (
+                <button onClick={() => exportTrack(tr)} title="Exportar para ficheiro">
+                  ⇩
+                </button>
+              )}
               <button onClick={() => remove(tr)} title="Apagar">
                 ✕
               </button>
             </li>
           ))}
         </ul>
+      )}
+
+      {settings.exportImport && (
+        <label className="import">
+          <input type="file" accept=".json,application/json" onChange={importFile} />
+          <span>Importar pista…</span>
+        </label>
       )}
     </div>
   );

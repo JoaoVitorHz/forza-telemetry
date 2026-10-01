@@ -45,6 +45,13 @@ export const SETTINGS_GROUPS = [
     ],
   },
   {
+    title: "Partilhar pistas",
+    items: [
+      { key: "exportImport", type: "bool", label: "Exportar e importar pistas", desc: "Botões para descarregar uma pista em ficheiro e importar pistas de amigos." },
+      { key: "exportIncludeLaps", type: "bool", label: "Incluir histórico de voltas ao exportar", desc: "O ficheiro fica maior, mas leva todas as voltas e traçados." },
+    ],
+  },
+  {
     title: "Som",
     items: [
       { key: "sound", type: "bool", label: "Avisos sonoros", desc: "Avisa ao fechar setores e voltas, para não teres de olhar para o ecrã." },

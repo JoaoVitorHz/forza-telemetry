@@ -87,6 +87,44 @@ function trackView(id) {
   };
 }
 
+// Ficheiro de exportação: pista + recordes (+ histórico de voltas, opcional).
+const EXPORT_FORMAT = "forza-telemetry-track";
+
+function exportTrack(id, includeLaps) {
+  const track = store.get(id);
+  if (!track) return null;
+  const { name, start, sectors, path, records } = track;
+  return {
+    format: EXPORT_FORMAT,
+    version: 1,
+    exportedAt: new Date().toISOString(),
+    carNames: cars.names,
+    track: { name, start, sectors, path, records },
+    laps: includeLaps ? readLaps(id) : [],
+  };
+}
+
+const isPoint = (p) => p && Number.isFinite(p.x) && Number.isFinite(p.z);
+
+// Importa sempre como pista nova (não mistura recordes de outra pessoa com os teus).
+function importTrack(data) {
+  if (data?.format !== EXPORT_FORMAT || !data.track || !isPoint(data.track.start)) {
+    throw new Error("Ficheiro inválido: não é uma pista exportada por este programa.");
+  }
+  const t = data.track;
+  const records = t.records && typeof t.records === "object" ? t.records : {};
+  const name = `${String(t.name ?? "Pista").slice(0, 50)} (importada)`;
+  const track = store.add({ name, start: t.start, sectors: t.sectors ?? null, path: t.path ?? null, records });
+  for (const lap of Array.isArray(data.laps) ? data.laps : []) {
+    if (Number.isFinite(lap?.ms)) appendLap(track.id, lap);
+  }
+  // Nomes de carros do ficheiro só entram se ainda não tiveres nome para esse carro.
+  for (const [carId, carName] of Object.entries(data.carNames ?? {})) {
+    if (!cars.names[carId]) cars.setName(carId, carName);
+  }
+  return track;
+}
+
 let latest = null;
 let lastPacketAt = 0;
 let loggedLength = false;
@@ -196,6 +234,19 @@ wss.on("connection", (ws) => {
     } else if (msg.type === "nameCar" && msg.id != null) {
       cars.setName(String(msg.id), msg.name);
       broadcast({ type: "cars", names: cars.names });
+    } else if (msg.type === "exportTrack") {
+      const data = exportTrack(msg.id, msg.includeLaps);
+      if (data) send(ws, { type: "trackExport", fileName: `${data.track.name.replace(/[^\w-]+/g, "_")}.json`, data });
+    } else if (msg.type === "importTrack") {
+      try {
+        const track = importTrack(msg.data);
+        console.log(`[pistas] importada: "${track.name}"`);
+        broadcastTracks();
+        broadcast({ type: "cars", names: cars.names });
+        send(ws, { type: "importResult", ok: true, name: track.name });
+      } catch (err) {
+        send(ws, { type: "importResult", ok: false, error: err.message });
+      }
     } else if (msg.type === "getTrackView") send(ws, { type: "trackView", view: trackView(msg.id) });
     else if (msg.type === "getSavedLap") {
       const lap = readLaps(msg.trackId).find((l) => l.id === msg.lapId) ?? null;

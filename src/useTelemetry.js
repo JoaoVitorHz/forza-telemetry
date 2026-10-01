@@ -39,6 +39,9 @@ export function useTelemetry(url) {
         else if (msg.type === "cars") setCarNames(msg.names);
         else if (msg.type === "settings") setSettings(msg.values);
         else if (msg.type === "network") setNetwork(msg);
+        else if (msg.type === "trackExport") downloadJson(msg.fileName, msg.data);
+        else if (msg.type === "importResult")
+          alert(msg.ok ? `Pista importada: ${msg.name}` : `Não foi possível importar: ${msg.error}`);
       };
     };
     connect();
@@ -56,4 +59,13 @@ export function useTelemetry(url) {
   }, []);
 
   return { state, map, tracks, lapDetail, trackView, savedLap, carNames, settings, network, online, send };
+}
+
+function downloadJson(fileName, data) {
+  const url = URL.createObjectURL(new Blob([JSON.stringify(data)], { type: "application/json" }));
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = fileName;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }

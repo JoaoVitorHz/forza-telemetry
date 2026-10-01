@@ -214,7 +214,7 @@ export default function App() {
             lapColorMode={lapColorMode}
           />
           {viewedLap && settings.compareChart && <CompareChart lap={viewedLap} label={`Volta ${viewedLap.n}`} />}
-          <Tracks tracks={tracks} timer={timer} send={send} />
+          <Tracks tracks={tracks} timer={timer} settings={settings} send={send} />
         </section>
       </div>
     </>

@@ -13,6 +13,8 @@ export const DEFAULT_SETTINGS = {
   miniSectorCount: 12,
   stats: true,
   statsExcludeSlow: true,
+  exportImport: true,
+  exportIncludeLaps: true,
   sound: false,
   soundVoice: true,
   soundSectors: true,

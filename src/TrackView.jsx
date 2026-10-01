@@ -90,6 +90,11 @@ export default function TrackView({ view, savedLap, activeTrackId, liveCar, carN
           <button onClick={() => send({ type: "loadTrack", id: view.id })} disabled={activeTrackId === view.id}>
             {activeTrackId === view.id ? "Pista ativa" : "Usar para cronometrar"}
           </button>
+          {settings.exportImport && (
+            <button onClick={() => send({ type: "exportTrack", id: view.id, includeLaps: settings.exportIncludeLaps })}>
+              ⇩ Exportar
+            </button>
+          )}
         </div>
 
         {settings.stats && <Stats laps={laps} excludeSlow={settings.statsExcludeSlow} />}
