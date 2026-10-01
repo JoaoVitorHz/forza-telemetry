@@ -45,6 +45,16 @@ export const SETTINGS_GROUPS = [
     ],
   },
   {
+    title: "Som",
+    items: [
+      { key: "sound", type: "bool", label: "Avisos sonoros", desc: "Avisa ao fechar setores e voltas, para não teres de olhar para o ecrã." },
+      { key: "soundVoice", type: "bool", label: "Usar voz", desc: "Diz, por exemplo, \"Setor 1, roxo, menos 0,2\". Desligado = só bips (agudo = roxo, médio = verde, grave = amarelo)." },
+      { key: "soundSectors", type: "bool", label: "Avisar setores" },
+      { key: "soundLaps", type: "bool", label: "Avisar voltas", desc: "Tempo da volta e se foi recorde." },
+      { key: "soundTest", type: "action", label: "Testar som", desc: "O browser só toca som depois de um clique na página." },
+    ],
+  },
+  {
     title: "Rede",
     items: [
       {
