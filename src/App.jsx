@@ -8,6 +8,7 @@ import TrackView from "./TrackView.jsx";
 import Settings from "./Settings.jsx";
 import CompareChart from "./CompareChart.jsx";
 import LapColorToggle from "./LapColorToggle.jsx";
+import CarPanel from "./CarPanel.jsx";
 import { miniSectorColors } from "../shared/miniSectors.js";
 import { fmtDelta, fmtTime } from "./format.js";
 import { askCarName, carLabel } from "./cars.js";
@@ -171,6 +172,7 @@ export default function App() {
               <Bar value={t.brake} color="#e74c3c" />
             </div>
           )}
+          <CarPanel t={t} settings={settings} />
 
           <div className="buttons">
             <button onClick={() => send({ type: "setStart" })} disabled={!state?.receiving}>

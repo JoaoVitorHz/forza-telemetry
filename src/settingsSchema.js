@@ -10,6 +10,15 @@ export const SETTINGS_GROUPS = [
     ],
   },
   {
+    title: "Painel do carro",
+    items: [
+      { key: "tireTemps", type: "bool", label: "Temperatura dos pneus", desc: "Os 4 pneus em °C: frio (< 60), ideal (60–95) ou quente (> 95)." },
+      { key: "wheelSlip", type: "bool", label: "Patinagem das rodas", desc: "Aderência de cada roda e aviso de subviragem/sobreviragem." },
+      { key: "shiftLight", type: "bool", label: "Luz de mudança", desc: "Luzes que acendem com as rotações e piscam na hora de trocar." },
+      { key: "shiftLightAt", type: "number", min: 70, max: 99, label: "Trocar mudança a (% das rotações máx.)", desc: "Ponto em que as luzes piscam." },
+    ],
+  },
+  {
     title: "Análise",
     items: [
       {

@@ -3,6 +3,10 @@
 export const DEFAULT_SETTINGS = {
   showPedals: true,
   showLapHistory: true,
+  tireTemps: true,
+  wheelSlip: true,
+  shiftLight: true,
+  shiftLightAt: 92,
   compareChart: true,
   ghost: true,
   miniSectors: true,
