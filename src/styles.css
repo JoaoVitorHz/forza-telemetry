@@ -700,3 +700,63 @@ body.overlay-body {
 .analysis-cause {
   color: #ccc;
 }
+
+.map.clickable {
+  cursor: pointer;
+}
+.corners {
+  margin-top: 14px;
+}
+.corners table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+.corners th {
+  position: sticky;
+  top: 0;
+  background: #0d0d0d;
+  color: #888;
+  font-size: 11px;
+  font-weight: 600;
+  text-align: right;
+  padding: 4px 6px;
+}
+.corners td {
+  text-align: right;
+  padding: 4px 6px;
+  border-top: 1px solid #1a1a1a;
+}
+.corners th:first-child,
+.corners td.lap-n {
+  text-align: left;
+  color: #888;
+}
+.corners tbody tr {
+  cursor: pointer;
+}
+.corners tbody tr:hover {
+  background: #161616;
+}
+.corners tbody tr.selected {
+  background: #1d1d2b;
+  outline: 1px solid #4da3ff66;
+}
+.corner-detail {
+  display: grid;
+  gap: 4px;
+  margin-top: 8px;
+  font-size: 13px;
+  color: #ccc;
+}
+.corner-detail i {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  margin-right: 4px;
+}
+.corners-hint {
+  margin-top: 6px;
+}

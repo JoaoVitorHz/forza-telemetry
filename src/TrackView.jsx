@@ -6,6 +6,7 @@ import { askCarName, carLabel } from "./cars.js";
 import CompareChart from "./CompareChart.jsx";
 import LapColorToggle from "./LapColorToggle.jsx";
 import LapAnalysis from "./LapAnalysis.jsx";
+import CornerTable, { cornerMarks } from "./CornerTable.jsx";
 import { analyzeLap, topLosses } from "../shared/analysis.js";
 import { miniSectorColors } from "../shared/miniSectors.js";
 
@@ -15,11 +16,14 @@ export default function TrackView({ view, savedLap, activeTrackId, liveCar, carN
   const [carKey, setCarKey] = useState(null);
   const [lapColorMode, setLapColorMode] = useState("sectors");
   const shownLap = selected && savedLap?.id === selected ? savedLap : null;
-  const lapLosses = useMemo(
-    () =>
-      settings.lapAnalysis && shownLap ? topLosses(analyzeLap(shownLap.samples, shownLap.refSamples, view?.corners)) : null,
-    [settings.lapAnalysis, shownLap, view?.corners],
+  const lapAnalysis = useMemo(
+    () => (shownLap ? analyzeLap(shownLap.samples, shownLap.refSamples, view?.corners) : null),
+    [shownLap, view?.corners],
   );
+  const lapLosses = settings.lapAnalysis && lapAnalysis ? topLosses(lapAnalysis) : null;
+  // Curva ampliada no mapa (só numa volta escolhida).
+  const [corner, setCorner] = useState(null);
+  useEffect(() => setCorner(null), [shownLap]);
   const lapMini = useMemo(
     () =>
       settings.miniSectors && shownLap
@@ -42,6 +46,12 @@ export default function TrackView({ view, savedLap, activeTrackId, liveCar, carN
     .filter((lap) => car && String(lap.car?.ordinal ?? "?") === car.key)
     .map((lap, i) => ({ ...lap, n: i + 1 }));
   const shownN = laps.find((l) => l.id === selected)?.n;
+
+  const focusData = corner && lapAnalysis?.find((a) => a.corner === corner);
+  const focusCenter = focusData && view.corners?.[corner - 1];
+  const cornerFocus = focusCenter
+    ? { center: focusCenter, marks: cornerMarks(focusData, shownLap.path, car?.refPath ?? view.path) }
+    : null;
 
   const select = (id) => {
     if (id === selected) return setSelected(null);
@@ -117,14 +127,20 @@ export default function TrackView({ view, savedLap, activeTrackId, liveCar, carN
             start: view.start,
             refPath: car?.refPath ?? view.path,
             sectors: view.sectors,
+            corners: view.corners,
             mapVersion: `${view.id}-${car?.key}`,
           }}
           lap={shownLap}
           miniColors={lapMini}
           lapColorMode={lapColorMode}
+          showCorners={settings.showCorners}
+          selectedCorner={corner}
+          onCornerClick={lapAnalysis ? setCorner : undefined}
+          focus={cornerFocus}
         />
         {shownLap && settings.compareChart && <CompareChart lap={shownLap} label={`Volta ${shownN}`} />}
         {lapLosses && <LapAnalysis title={`ONDE PERDESTE TEMPO • VOLTA ${shownN}`} items={lapLosses} />}
+        {settings.showCorners && <CornerTable analysis={lapAnalysis} selected={corner} onSelect={setCorner} />}
       </section>
     </div>
   );

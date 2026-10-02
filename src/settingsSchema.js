@@ -44,6 +44,12 @@ export const SETTINGS_GROUPS = [
         desc: "No fim de cada volta (e ao escolher uma volta), mostra as curvas onde perdeste mais tempo e a causa provável.",
       },
       {
+        key: "showCorners",
+        type: "bool",
+        label: "Curvas no mapa",
+        desc: "Curvas numeradas no mapa. Numa volta escolhida, clica numa curva para a ampliar e comparar travagem, velocidade mínima e aceleração.",
+      },
+      {
         key: "ghost",
         type: "bool",
         label: "Fantasma no mapa",

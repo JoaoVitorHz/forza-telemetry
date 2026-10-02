@@ -5,6 +5,8 @@ const H = 500;
 const PAD = 30;
 const SECTOR_COLORS = { purple: "#b57bff", green: "#2ecc71", yellow: "#f1c40f" };
 const NO_SECTOR = "#888";
+const FOCUS_RADIUS_M = 180; // zoom numa curva: mostra o que estiver a esta distância dela
+const CORNER_HIT_PX = 16;
 
 // Divide o traçado de uma volta nos três setores, cada um com a sua cor.
 function sectorSegments(lap) {
@@ -45,9 +47,24 @@ function segmentsByDistance(path, colors) {
 // a linha de partida e a posição do carro. Com `lap`, mostra essa volta colorida por setor.
 // miniColors: mini-setores (ao vivo pintam o traçado de referência; com `lap` e
 // lapColorMode = "mini" pintam o traçado da volta em vez dos setores).
-export default function TrackMap({ map, pos, lapNumber, lap, ghost, miniColors, lapColorMode = "sectors" }) {
+// showCorners: curvas numeradas (clicáveis com onCornerClick). focus: { center, marks } amplia
+// uma curva e desenha marcas (travagem, velocidade mínima, acelerar).
+export default function TrackMap({
+  map,
+  pos,
+  lapNumber,
+  lap,
+  ghost,
+  miniColors,
+  lapColorMode = "sectors",
+  showCorners = false,
+  selectedCorner = null,
+  onCornerClick,
+  focus = null,
+}) {
   const canvasRef = useRef(null);
   const trailRef = useRef([]);
+  const cornerScreen = useRef([]); // posições das curvas no ecrã, para o clique
 
   useEffect(() => {
     trailRef.current = [];
@@ -79,8 +96,11 @@ export default function TrackMap({ map, pos, lapNumber, lap, ghost, miniColors, 
       return;
     }
 
+    // Zoom numa curva: os limites passam a ser só a zona à volta dela.
+    const near = (p) => Math.hypot(p.x - focus.center.x, p.z - focus.center.z) <= FOCUS_RADIUS_M;
+    const bounded = focus ? [...all.filter(near), ...focus.marks, focus.center] : all;
     let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
-    for (const p of all) {
+    for (const p of bounded) {
       minX = Math.min(minX, p.x);
       maxX = Math.max(maxX, p.x);
       minZ = Math.min(minZ, p.z);
@@ -122,6 +142,31 @@ export default function TrackMap({ map, pos, lapNumber, lap, ghost, miniColors, 
       for (const seg of segmentsByDistance(ref, miniColors)) line(seg.pts, seg.color, 5);
       line(trail, "#4da3ff", 2);
     }
+    cornerScreen.current = [];
+    if (showCorners) {
+      map?.corners?.forEach((c, i) => {
+        const n = i + 1;
+        const [x, y] = proj(c);
+        cornerScreen.current.push({ n, x, y });
+        const active = n === selectedCorner;
+        dot(c, active ? "#fff" : "#0d0d0d", active ? 7 : 6);
+        dot(c, active ? "#4da3ff" : "#777", active ? 5 : 4);
+        ctx.fillStyle = active ? "#fff" : "#999";
+        ctx.font = `${active ? "bold " : ""}11px system-ui`;
+        ctx.textAlign = "left";
+        ctx.fillText(`C${n}`, x + 7, y - 6);
+      });
+    }
+    // Marcas da curva ampliada: anel escuro + cor da volta, com o rótulo por cima.
+    for (const m of focus?.marks ?? []) {
+      dot(m, "#0d0d0d", 7);
+      dot(m, m.color, 5);
+      const [x, y] = proj(m);
+      ctx.fillStyle = "#eee";
+      ctx.font = "bold 12px system-ui";
+      ctx.textAlign = "center";
+      ctx.fillText(m.label, x, y - 10);
+    }
     map?.sectors?.forEach((s, i) => {
       dot(s, "#f39c12", 5);
       const [x, y] = proj(s);
@@ -149,7 +194,32 @@ export default function TrackMap({ map, pos, lapNumber, lap, ghost, miniColors, 
       ctx.fillText(`REC ${ghost.gapM > 0 ? "+" : ""}${ghost.gapM} m`, gx + 10, gy - 8);
     }
     if (pos && !lap) dot(pos, "#fff", 6);
-  }, [map, pos, lapNumber, lap, ghost, miniColors, lapColorMode]);
+  }, [map, pos, lapNumber, lap, ghost, miniColors, lapColorMode, showCorners, selectedCorner, focus]);
 
-  return <canvas ref={canvasRef} width={W} height={H} className="map" />;
+  const onClick = (e) => {
+    if (!onCornerClick) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = ((e.clientX - rect.left) / rect.width) * W;
+    const y = ((e.clientY - rect.top) / rect.height) * H;
+    let hit = null;
+    let bestD = CORNER_HIT_PX;
+    for (const c of cornerScreen.current) {
+      const d = Math.hypot(c.x - x, c.y - y);
+      if (d < bestD) {
+        bestD = d;
+        hit = c.n;
+      }
+    }
+    if (hit != null) onCornerClick(hit === selectedCorner ? null : hit);
+  };
+
+  return (
+    <canvas
+      ref={canvasRef}
+      width={W}
+      height={H}
+      className={`map ${onCornerClick ? "clickable" : ""}`}
+      onClick={onClick}
+    />
+  );
 }

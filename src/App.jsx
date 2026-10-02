@@ -9,6 +9,7 @@ import Settings from "./Settings.jsx";
 import CompareChart from "./CompareChart.jsx";
 import LapColorToggle from "./LapColorToggle.jsx";
 import LapAnalysis from "./LapAnalysis.jsx";
+import CornerTable, { cornerMarks } from "./CornerTable.jsx";
 import { analyzeLap, topLosses } from "../shared/analysis.js";
 import { miniSectorColors } from "../shared/miniSectors.js";
 import { fmtDelta, fmtTime } from "./format.js";
@@ -51,11 +52,14 @@ export default function App() {
   const [selectedLap, setSelectedLap] = useState(null);
   const viewedLap = selectedLap != null && lapDetail?.n === selectedLap ? lapDetail : null;
   const [lapColorMode, setLapColorMode] = useState("sectors");
-  const lapLosses = useMemo(
-    () =>
-      settings.lapAnalysis && viewedLap ? topLosses(analyzeLap(viewedLap.samples, viewedLap.refSamples, map?.corners)) : null,
-    [settings.lapAnalysis, viewedLap, map?.corners],
+  const lapAnalysis = useMemo(
+    () => (viewedLap ? analyzeLap(viewedLap.samples, viewedLap.refSamples, map?.corners) : null),
+    [viewedLap, map?.corners],
   );
+  const lapLosses = settings.lapAnalysis && lapAnalysis ? topLosses(lapAnalysis) : null;
+  // Curva ampliada no mapa (só numa volta escolhida).
+  const [corner, setCorner] = useState(null);
+  useEffect(() => setCorner(null), [viewedLap]);
   const lapMini = useMemo(
     () =>
       settings.miniSectors && viewedLap
@@ -91,6 +95,12 @@ export default function App() {
             : "Conduz até à linha de partida e carrega em «Definir partida»"}
       </p>
     );
+
+  const cornerFocus = useMemo(() => {
+    const c = corner && lapAnalysis?.find((a) => a.corner === corner);
+    const center = c && map?.corners?.[corner - 1];
+    return center ? { center, marks: cornerMarks(c, viewedLap.path, map.refPath) } : null;
+  }, [corner, lapAnalysis, map, viewedLap]);
 
   const delta = timer?.deltaMs;
   const deltaClass = delta == null ? "" : delta < 0 ? "faster" : "slower";
@@ -222,9 +232,14 @@ export default function App() {
             ghost={settings.ghost ? timer?.ghost : null}
             miniColors={viewedLap ? lapMini : timer?.miniSectors}
             lapColorMode={lapColorMode}
+            showCorners={settings.showCorners}
+            selectedCorner={corner}
+            onCornerClick={lapAnalysis ? setCorner : undefined}
+            focus={cornerFocus}
           />
           {viewedLap && settings.compareChart && <CompareChart lap={viewedLap} label={`Volta ${viewedLap.n}`} />}
           {lapLosses && <LapAnalysis title={`ONDE PERDESTE TEMPO • VOLTA ${viewedLap.n}`} items={lapLosses} />}
+          {settings.showCorners && <CornerTable analysis={lapAnalysis} selected={corner} onSelect={setCorner} />}
           <Tracks tracks={tracks} timer={timer} settings={settings} send={send} />
         </section>
       </div>

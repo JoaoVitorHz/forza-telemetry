@@ -7,6 +7,7 @@ export const DEFAULT_SETTINGS = {
   showLapHistory: true,
   compareChart: true,
   lapAnalysis: true,
+  showCorners: true,
   ghost: true,
   miniSectors: true,
   miniSectorCount: 12,
