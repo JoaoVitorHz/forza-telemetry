@@ -1,5 +1,6 @@
 import { useMemo, useState } from "react";
 import { fmtDelta } from "./format.js";
+import { withTraces } from "../shared/analysis.js";
 
 // Comparação de uma volta com o recorde ao longo da distância percorrida.
 // Pequenos gráficos empilhados com o mesmo eixo X (distância): delta, velocidade, acelerador, travão.
@@ -42,13 +43,13 @@ function thin(points) {
 
 export default function CompareChart({ lap, label }) {
   const [hoverD, setHoverD] = useState(null);
-  const samples = lap?.samples;
-  const ref = lap?.refSamples;
+  const samples = useMemo(() => withTraces(lap?.samples), [lap]);
+  const ref = useMemo(() => withTraces(lap?.refSamples), [lap]);
 
   const data = useMemo(() => {
     if (!samples?.length || !ref?.length) return null;
     const maxD = Math.min(samples[samples.length - 1][0], ref[ref.length - 1][0]);
-    const hasTraces = samples[0].length >= 5 && ref[0].length >= 5;
+    const hasTraces = samples[1]?.length >= 5 && ref[1]?.length >= 5;
     const within = samples.filter((s) => s[0] <= maxD);
     const delta = within.map((s) => [s[0], (s[1] - valueAt(ref, s[0], 1)) / 1000]);
     const maxAbsDelta = Math.max(0.1, ...delta.map(([, v]) => Math.abs(v)));

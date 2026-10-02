@@ -9,7 +9,14 @@ const FULL_THROTTLE = 95; // % de acelerador que conta como "a fundo"
 const APEX_WINDOW_M = 80; // procura da velocidade mínima à volta do vértice
 const MIN_LOSS_MS = 50;
 
-const hasTraces = (samples) => samples?.length > 2 && samples[0].length >= 5;
+// A 1.ª amostra das voltas gravadas até agora só tinha [distância, tempo]; a velocidade e os
+// pedais começam na 2.ª. Copia-os da 2.ª para a 1.ª para todas terem as 5 colunas.
+export function withTraces(samples) {
+  if (!samples || samples.length < 2 || samples[0].length >= samples[1].length) return samples;
+  return [[samples[0][0], samples[0][1], ...samples[1].slice(2)], ...samples.slice(1)];
+}
+
+const hasTraces = (samples) => samples?.length > 2 && samples[1].length >= 5;
 const lengthOf = (samples) => samples[samples.length - 1][0];
 
 function timeAt(samples, d) {
@@ -29,7 +36,8 @@ function timeAt(samples, d) {
 
 // Curvas = mínimos de velocidade com quebra e recuperação suficientes (histerese).
 // Devolve a posição de cada vértice em fração da volta.
-export function detectCorners(samples) {
+export function detectCorners(raw) {
+  const samples = withTraces(raw);
   if (!hasTraces(samples)) return [];
   const total = lengthOf(samples);
   const corners = [];
@@ -104,7 +112,9 @@ function mainCause(c) {
 
 // Compara uma volta com a referência curva a curva. Cada curva tem a sua zona (até meio
 // caminho das curvas vizinhas) e o tempo perdido nessa zona.
-export function analyzeLap(lap, ref, corners) {
+export function analyzeLap(rawLap, rawRef, corners) {
+  const lap = withTraces(rawLap);
+  const ref = withTraces(rawRef);
   if (!hasTraces(lap) || !hasTraces(ref) || !corners?.length) return null;
   const lapLen = lengthOf(lap);
   const refLen = lengthOf(ref);

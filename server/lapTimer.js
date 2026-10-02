@@ -230,7 +230,10 @@ export class LapTimer {
     this.lapNumber++;
     this.currentMs = 0;
     this.lapDist = 0;
-    this.samples = [[0, 0]];
+    // 1.ª amostra já com velocidade e pedais (do último pacote), como as restantes.
+    const p = this.prev;
+    this.samples = [[0, 0, Math.round((p?.speed ?? 0) * 3.6), Math.round((p?.throttle ?? 0) / 2.55), Math.round((p?.brake ?? 0) / 2.55)]];
+    this.partial = false; // volta apanhada a meio (sem origem de distância fiável)
     this.samplePos = [{ x: pos.x, z: pos.z }]; // posição de cada amostra (para desfazer um retroceder)
     this.path = [{ x: pos.x, z: pos.z }];
     this.pathDist = [0];
@@ -322,6 +325,9 @@ export class LapTimer {
     this.gameLap = t.lapNumber;
     this.resetLaps();
     this.beginLap(t);
+    // Apanhou a corrida a meio de uma volta (ex.: programa reiniciado): o tempo vem do jogo, mas a
+    // distância não começou na meta, por isso esta volta não tem delta nem é gravada.
+    if (t.currentLap > 2) this.partial = true;
   }
 
   leaveRace() {
@@ -439,6 +445,11 @@ export class LapTimer {
   }
 
   completeLap(lap = this.currentMs, pos = this.start) {
+    if (this.partial) {
+      console.log("[volta] volta apanhada a meio: não foi gravada");
+      this.beginLap(pos);
+      return;
+    }
     // S3 = resto da volta (só se S1 e S2 foram registados nesta volta).
     if (this.splits[0] && this.splits[1]) this.recordSplit(2, lap - this.splitAtMs);
     let changed = this.splits.some((s) => s?.color === "purple"); // novo melhor setor de sempre
@@ -500,7 +511,7 @@ export class LapTimer {
   // Delta = tempo atual − tempo da referência (recorde ou volta ideal) à mesma distância percorrida.
   deltaMs() {
     const best = this.deltaRefSamples();
-    if (!this.running || !best || best.length < 2 || this.lapDist > best[best.length - 1][0]) return null;
+    if (!this.running || this.partial || !best || best.length < 2 || this.lapDist > best[best.length - 1][0]) return null;
     let lo = 0;
     let hi = best.length - 1;
     while (hi - lo > 1) {
@@ -519,7 +530,7 @@ export class LapTimer {
   ghost() {
     const ref = this.ref;
     const samples = this.deltaRefSamples();
-    if (!this.running || !samples?.length || !ref?.path?.length) return null;
+    if (!this.running || this.partial || !samples?.length || !ref?.path?.length) return null;
     if (this.currentMs >= samples[samples.length - 1][1]) return null;
     // Distância do recorde neste instante (as amostras estão ordenadas por tempo).
     let lo = 0;
@@ -551,8 +562,9 @@ export class LapTimer {
       currentMs: this.currentMs,
       deltaMs: this.deltaMs(),
       ghost: this.ghost(),
+      partialLap: this.partial,
       miniSectors:
-        this.running && this.miniCount ? miniSectorColors(this.samples, this.ref?.samples, this.miniCount, false) : null,
+        this.running && !this.partial && this.miniCount ? miniSectorColors(this.samples, this.ref?.samples, this.miniCount, false) : null,
       lastLapMs: this.lastLapMs,
       sessionBestMs: this.sessionBestMs,
       recordMs: this.ref?.ms ?? null,
