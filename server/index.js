@@ -16,11 +16,11 @@ const timer = new LapTimer();
 const store = new TrackStore();
 const cars = new CarStore();
 const settings = new SettingsStore();
-// Amostras das voltas guardadas de um carro numa pista (para a volta ideal).
-timer.historySamples = (trackId, carKey) =>
+// Voltas guardadas de um carro numa pista (para a volta ideal).
+timer.historyLaps = (trackId, carKey) =>
   readLaps(trackId)
-    .filter((lap) => String(lap.car?.ordinal ?? "?") === carKey && lap.samples)
-    .map((lap) => lap.samples);
+    .filter((lap) => String(lap.car?.ordinal ?? "?") === carKey && lap.samples && lap.gateTimes)
+    .map(({ ms, samples, gateTimes }) => ({ ms, samples, gateTimes }));
 const applySettings = () => {
   timer.miniCount = settings.values.miniSectors ? settings.values.miniSectorCount : 0;
   timer.autoStart = settings.values.autoStart;
@@ -54,6 +54,7 @@ function lapRecord(lap) {
     splitIdx: lap.splitIdx,
     path: lap.path,
     samples: lap.samples, // para o delta, se esta volta voltar a ser recorde
+    gateTimes: lap.gateTimes, // passagens nas linhas da volta ideal
   };
 }
 
@@ -61,7 +62,7 @@ function lapRecord(lap) {
 function trackView(id) {
   const track = store.get(id);
   if (!track) return null;
-  const laps = readLaps(id).map(({ path, splitIdx, samples, ...lap }) => lap);
+  const laps = readLaps(id).map(({ path, splitIdx, samples, gateTimes, ...lap }) => lap);
 
   // Carros com recorde ou com voltas nesta pista.
   const byCar = {};

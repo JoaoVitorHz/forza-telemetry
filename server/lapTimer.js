@@ -14,6 +14,7 @@ const MAX_STEP_M = 50; // salto maior num pacote = teleporte/reinício, não con
 const PATH_STEP_M = 3;
 const SAMPLE_STEP_M = 2; // resolução das amostras guardadas para o delta
 const GATE_RADIUS = 30; // m — largura máxima da "linha" de cada setor
+const IDEAL_GATES = 24; // linhas fixas que dividem a volta em troços para a volta ideal
 const SCOUT_STEP_M = 2; // resolução do trajeto guardado à procura de um circuito
 const SCOUT_MAX_POINTS = 20_000; // ~40 km de trajeto
 const LOOP_MATCH_M = 10; // distância para considerar que voltou a passar no mesmo ponto
@@ -45,7 +46,7 @@ export class LapTimer {
     this.autoStart = true; // deteta a partida sozinho ao fechar um circuito (Configurações)
     this.autoMinLength = 800; // comprimento mínimo do circuito (m)
     this.deltaMode = "best"; // referência do delta e do fantasma: "best" (recorde) ou "ideal"
-    this.historySamples = null; // (idPista, carro) => amostras das voltas guardadas (dado pelo servidor)
+    this.historyLaps = null; // (idPista, carro) => voltas guardadas { ms, samples, gateTimes } (dado pelo servidor)
     this.onTrackUpdate = null; // chamado quando recorde, setores ou melhores setores mudam
     this.onLapComplete = null; // chamado com cada volta fechada (com traçado), para o histórico
     this.reset();
@@ -60,6 +61,7 @@ export class LapTimer {
     this.start = null; // { x, z, dir: { x, z } | null }
     this.sectors = null; // divisões S1/S2: [{ x, z, dir }, { x, z, dir }]
     this.corners = null; // curvas da pista: [{ frac, x, z }] (frac = posição em fração da volta)
+    this.idealGates = null; // linhas da volta ideal (calculadas do traçado da pista, sempre iguais)
     this.lastAnalysis = null; // { n, items } — onde se perdeu tempo na última volta
     this.trackPath = null; // traçado da pista para o mapa (de qualquer carro)
     this.records = {}; // por carro: { [carKey]: { best, bestSectors } }
@@ -78,13 +80,26 @@ export class LapTimer {
 
   // Volta ideal do carro atual: melhores troços das voltas guardadas desta pista e da sessão.
   rebuildIdeal() {
-    const pool = [];
-    if (this.track && this.historySamples) pool.push(...this.historySamples(this.track.id, this.carKey));
-    for (const lap of this.laps ?? []) {
-      const samples = lap.car === this.carKey && this.lapPaths?.get(lap.n)?.samples;
-      if (samples) pool.push(samples);
+    this.ensureIdealGates();
+    if (!this.idealGates) {
+      this.ideal = null;
+      return;
     }
-    this.ideal = buildIdeal(pool);
+    const pool = [];
+    if (this.track && this.historyLaps) pool.push(...this.historyLaps(this.track.id, this.carKey));
+    for (const lap of this.laps ?? []) {
+      const detail = lap.car === this.carKey && this.lapPaths?.get(lap.n);
+      if (detail) pool.push({ ms: lap.ms, samples: detail.samples, gateTimes: detail.gateTimes });
+    }
+    this.ideal = buildIdeal(pool, this.idealGates.map((g) => g.frac));
+  }
+
+  // Linhas da volta ideal, a intervalos iguais ao longo do traçado fixo da pista.
+  ensureIdealGates() {
+    const path = this.trackPath ?? this.ref?.path;
+    if (this.idealGates || !path || path.length < 10) return;
+    const fracs = Array.from({ length: IDEAL_GATES }, (_, k) => (k + 1) / (IDEAL_GATES + 1));
+    this.idealGates = computeGates(path, fracs);
   }
 
   // Amostras de referência do delta e do fantasma, conforme a opção escolhida.
@@ -245,6 +260,10 @@ export class LapTimer {
     this.gatePrevSide = null;
     this.splitAtMs = 0;
     this.splitMarks = []; // { dist, atMs } de cada setor fechado nesta volta
+    this.ensureIdealGates();
+    this.gateTimes = []; // instante de passagem em cada linha da volta ideal
+    this.gateDists = [];
+    this.idealGatePrevSide = null;
   }
 
   update(t) {
@@ -295,12 +314,25 @@ export class LapTimer {
     }
 
     const d = Math.hypot(t.x - this.start.x, t.z - this.start.z);
-    // Passagem na partida = ponto mais próximo dela (dentro do raio e a começar a afastar-se).
-    const crossing = d < START_RADIUS && d > this.prevStartDist && headingOk(this.start, prev, t);
+    // Passagem na partida: a partida é uma linha perpendicular ao sentido da pista e o instante
+    // exato é interpolado entre os dois pacotes (crossF = fração de dt até à linha). Sem sentido
+    // conhecido, vale o pacote mais próximo do ponto de partida.
+    let crossF = null;
+    if (this.start.dir) {
+      const side = (t.x - this.start.x) * this.start.dir.x + (t.z - this.start.z) * this.start.dir.z;
+      const prevSide = this.startPrevSide;
+      if (d < START_RADIUS && prevSide != null && prevSide < 0 && side >= 0) crossF = prevSide / (prevSide - side);
+      this.startPrevSide = d < START_RADIUS * 2 ? side : null;
+    } else if (d < START_RADIUS && d > this.prevStartDist && headingOk(this.start, prev, t)) {
+      crossF = 1;
+    }
     this.prevStartDist = d;
 
     if (!this.running) {
-      if (crossing) this.beginLap();
+      if (crossF != null) {
+        this.beginLap();
+        this.currentMs = Math.round((1 - crossF) * dt);
+      }
       return;
     }
 
@@ -317,7 +349,12 @@ export class LapTimer {
     }
 
     if (!this.armed && d > ARM_DISTANCE) this.armed = true;
-    if (this.armed && crossing && this.currentMs > MIN_LAP_MS) this.completeLap();
+    if (this.armed && crossF != null && this.currentMs > MIN_LAP_MS) {
+      const lapMs = Math.round(prevMs + crossF * dt);
+      const carry = this.currentMs - lapMs; // o resto do intervalo já pertence à volta seguinte
+      this.completeLap(lapMs);
+      this.currentMs = carry;
+    }
   }
 
   enterRace(t) {
@@ -334,6 +371,7 @@ export class LapTimer {
     this.gameRace = false;
     this.running = false; // volta à deteção pela partida (se houver uma)
     this.prevStartDist = Infinity;
+    this.startPrevSide = null;
   }
 
   updateRace(t, prev, step) {
@@ -373,6 +411,24 @@ export class LapTimer {
       this.pathDist.push(this.lapDist);
     }
     this.checkGate(t, prevMs);
+    this.checkIdealGate(t, prevMs);
+  }
+
+  // Passagem nas linhas da volta ideal (uma de cada vez, por ordem), com o instante interpolado.
+  checkIdealGate(t, prevMs) {
+    const i = this.gateTimes.length;
+    if (!this.idealGates || i >= this.idealGates.length) return;
+    const g = this.idealGates[i];
+    const side = (t.x - g.x) * g.dir.x + (t.z - g.z) * g.dir.z;
+    const near = Math.hypot(t.x - g.x, t.z - g.z) < GATE_RADIUS;
+    if (near && this.idealGatePrevSide != null && this.idealGatePrevSide < 0 && side >= 0) {
+      const f = this.idealGatePrevSide / (this.idealGatePrevSide - side);
+      this.gateTimes.push(Math.round(prevMs + f * (this.currentMs - prevMs)));
+      this.gateDists.push(this.lapDist);
+      this.idealGatePrevSide = null;
+      return;
+    }
+    this.idealGatePrevSide = near ? side : null;
   }
 
   // Retroceder: volta ao estado da volta no ponto onde o carro reapareceu (tempo, distância,
@@ -408,7 +464,13 @@ export class LapTimer {
     }
     this.splitAtMs = this.splitMarks[this.splitMarks.length - 1]?.atMs ?? 0;
     this.gatePrevSide = null;
+    while (this.gateDists.length && this.gateDists[this.gateDists.length - 1] > dist) {
+      this.gateDists.pop();
+      this.gateTimes.pop();
+    }
+    this.idealGatePrevSide = null;
     this.prevStartDist = Infinity; // não confundir o reaparecimento com uma passagem na partida
+    this.startPrevSide = null;
     console.log(`[volta] retroceder: volta reposta em ${Math.round(dist)} m / ${(ms / 1000).toFixed(3)} s`);
   }
 
@@ -462,7 +524,13 @@ export class LapTimer {
     this.path.push({ x: pos.x, z: pos.z });
     const lapPath = this.path.map((p) => ({ x: round1(p.x), z: round1(p.z) }));
     const lapSamples = downsample(this.samples);
-    this.lapPaths.set(this.lapNumber, { path: lapPath, splitIdx: this.splitIdx, samples: lapSamples });
+    const complete = this.idealGates && this.gateTimes.length === this.idealGates.length;
+    this.lapPaths.set(this.lapNumber, {
+      path: lapPath,
+      splitIdx: this.splitIdx,
+      samples: lapSamples,
+      gateTimes: complete ? [...this.gateTimes] : null, // só voltas que passaram em todas as linhas
+    });
     if (this.laps.length > MAX_LAP_HISTORY) this.lapPaths.delete(this.laps.shift().n);
 
     // Onde se perdeu tempo, em relação à referência antes desta volta.
@@ -649,12 +717,17 @@ function minOrNull(a, b) {
 
 // Pontos a 1/3 e 2/3 do comprimento do traçado, com a direção da pista nesse ponto.
 function computeSectors(path) {
+  return computeGates(path, [1 / 3, 2 / 3]).map(({ frac, ...gate }) => gate);
+}
+
+// Linhas perpendiculares ao traçado nas frações pedidas do seu comprimento.
+function computeGates(path, fracs) {
   const cum = [0];
   for (let i = 1; i < path.length; i++) {
     cum.push(cum[i - 1] + Math.hypot(path[i].x - path[i - 1].x, path[i].z - path[i - 1].z));
   }
   const total = cum[cum.length - 1];
-  return [1 / 3, 2 / 3].map((frac) => {
+  return fracs.map((frac) => {
     const target = total * frac;
     let i = 1;
     while (i < cum.length - 1 && cum[i] < target) i++;
@@ -669,6 +742,7 @@ function computeSectors(path) {
       x: round1(a.x + (b.x - a.x) * f),
       z: round1(a.z + (b.z - a.z) * f),
       dir: { x: (p1.x - p0.x) / len, z: (p1.z - p0.z) / len },
+      frac,
     };
   });
 }
