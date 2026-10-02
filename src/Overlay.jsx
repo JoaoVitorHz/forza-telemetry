@@ -7,12 +7,13 @@ import { fmtDelta, fmtTime } from "./format.js";
 const WS_URL = `ws://${location.hostname}:8080`;
 
 // Overlays para ficar por cima do jogo (janelas Electron ou fontes de browser no OBS).
-// Cada um tem o seu endereço: ?overlay=delta | sectors | map. Arrastam-se pela barra de cima;
+// Cada um tem o seu endereço: ?overlay=delta | sectors | map | times. Arrastam-se pela barra de cima;
 // o fundo usa a opacidade definida nas Configurações.
 const KINDS = {
   delta: { title: "Delta", Body: DeltaBody },
   sectors: { title: "Setores", Body: SectorsBody },
   map: { title: "Mapa", Body: MapBody },
+  times: { title: "Tempos", Body: TimesBody },
 };
 
 export default function Overlay({ kind }) {
@@ -73,5 +74,26 @@ function MapBody({ state, map, settings }) {
       ghost={settings.ghost ? timer?.ghost : null}
       miniColors={timer?.miniSectors}
     />
+  );
+}
+
+// Melhor volta (recorde do carro), volta ideal e última volta, com a diferença da última para o recorde.
+function TimesBody({ state }) {
+  const timer = state?.timer;
+  const last = timer?.lastLapMs;
+  const best = timer?.recordMs;
+  const gap = last != null && best != null ? last - best : null;
+  return (
+    <div className="overlay-times">
+      <span>Melhor volta</span>
+      <b className="best">{fmtTime(best)}</b>
+      <span>Volta ideal</span>
+      <b className="ideal">{fmtTime(timer?.idealMs)}</b>
+      <span>Última volta</span>
+      <b>
+        {fmtTime(last)}
+        {gap != null && gap !== 0 && <small className={gap < 0 ? "faster" : "slower"}> {fmtDelta(gap)}</small>}
+      </b>
+    </div>
   );
 }

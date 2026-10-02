@@ -611,6 +611,13 @@ body.overlay-body {
   font-size: 15px;
   font-variant-numeric: tabular-nums;
 }
+.overlay-times b.ideal {
+  color: #4da3ff;
+}
+.overlay-times small {
+  font-size: 12px;
+  font-weight: 600;
+}
 .overlay-times b.best {
   color: #b57bff;
 }

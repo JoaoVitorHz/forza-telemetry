@@ -1,5 +1,5 @@
 // Overlays: janelas pequenas, sem moldura, transparentes e sempre por cima do jogo.
-// Cada janela mostra um overlay (?overlay=delta | sectors | map). As janelas abertas seguem as
+// Cada janela mostra um overlay (?overlay=delta | sectors | map | times). As janelas abertas seguem as
 // Configurações (data/settings.json) e abrem/fecham na hora quando estas mudam.
 // Precisa do "npm run dev" a correr. O jogo tem de estar em "janela sem bordas".
 const { app, BrowserWindow, screen } = require("electron");
@@ -16,6 +16,7 @@ const OVERLAYS = {
   delta: { setting: "overlayDeltaWindow", width: 300, height: 150 },
   sectors: { setting: "overlaySectorsWindow", width: 360, height: 120 },
   map: { setting: "overlayMapWindow", width: 320, height: 300 },
+  times: { setting: "overlayTimesWindow", width: 280, height: 130 },
 };
 
 const windows = new Map();

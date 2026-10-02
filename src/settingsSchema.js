@@ -87,6 +87,7 @@ export const SETTINGS_GROUPS = [
       { key: "overlayDeltaWindow", type: "bool", label: "Janela do delta", desc: "Delta grande e tempo da volta. No OBS: http://localhost:5173/?overlay=delta" },
       { key: "overlaySectorsWindow", type: "bool", label: "Janela dos setores", desc: "S1, S2 e S3 com as cores. No OBS: ?overlay=sectors" },
       { key: "overlayMapWindow", type: "bool", label: "Janela do mapa", desc: "Mapa com a posição do carro e o fantasma. No OBS: ?overlay=map" },
+      { key: "overlayTimesWindow", type: "bool", label: "Janela dos tempos", desc: "Melhor volta, volta ideal e última volta. No OBS: ?overlay=times" },
       { key: "overlayOpacity", type: "number", min: 0, max: 100, label: "Opacidade do fundo (%)", desc: "0 = totalmente transparente." },
     ],
   },

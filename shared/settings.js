@@ -17,6 +17,7 @@ export const DEFAULT_SETTINGS = {
   overlayDeltaWindow: true,
   overlaySectorsWindow: true,
   overlayMapWindow: true,
+  overlayTimesWindow: true,
   overlayOpacity: 80,
 };
 
