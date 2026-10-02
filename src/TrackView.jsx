@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import TrackMap from "./TrackMap.jsx";
 import LapHistory from "./LapHistory.jsx";
+import ExportPanel from "./ExportPanel.jsx";
 import { fmtSector, fmtTime } from "./format.js";
 import { askCarName, carLabel } from "./cars.js";
 import CompareChart from "./CompareChart.jsx";
@@ -11,7 +12,7 @@ import { analyzeLap, spinRanges, topLosses } from "../shared/analysis.js";
 import { miniSectorColors } from "../shared/miniSectors.js";
 
 // Vista de uma pista guardada: recordes por carro, mapa e todas as voltas já feitas nela.
-export default function TrackView({ view, savedLap, activeTrackId, liveCar, carNames, settings, send }) {
+export default function TrackView({ view, savedLap, activeTrackId, liveCar, carNames, settings, lapsExport, send }) {
   const [selected, setSelected] = useState(null);
   const [carKey, setCarKey] = useState(null);
   const [lapColorMode, setLapColorMode] = useState("sectors");
@@ -119,6 +120,17 @@ export default function TrackView({ view, savedLap, activeTrackId, liveCar, carN
         </div>
 
         {laps.length > 0 && <LapHistory laps={laps} selected={selected} onSelect={select} />}
+        {laps.length > 0 && (
+          <ExportPanel
+            source="track"
+            trackId={view.id}
+            carKey={car.key}
+            carName={carLabel(car.key, carNames, car.info)}
+            settings={settings}
+            lapsExport={lapsExport}
+            send={send}
+          />
+        )}
       </section>
 
       <section className="panel">

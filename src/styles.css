@@ -826,3 +826,37 @@ body.overlay-body {
 .history td.slower {
   color: #ff5c5c;
 }
+
+.export {
+  margin-top: 16px;
+  border-top: 1px solid #222;
+  padding-top: 14px;
+}
+.export-options {
+  display: grid;
+  gap: 6px;
+  margin-bottom: 10px;
+  font-size: 13px;
+  color: #ccc;
+}
+.export-options input[type="number"] {
+  width: 64px;
+  background: #111;
+  color: #eee;
+  border: 1px solid #333;
+  border-radius: 4px;
+  padding: 4px 6px;
+}
+.export-options select {
+  background: #111;
+  color: #eee;
+  border: 1px solid #333;
+  border-radius: 4px;
+  padding: 3px 6px;
+}
+.export-result {
+  margin-top: 10px;
+}
+.export-result .hint {
+  margin-bottom: 8px;
+}

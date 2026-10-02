@@ -121,9 +121,9 @@ function measureCorner(samples, apex, zoneStart, zoneEnd, spinThreshold) {
     }
   }
   return {
-    brakeRel: brake == null ? null : brake - minDist,
+    brakeRel: brake == null ? null : Math.round(brake - minDist),
     minKmh: Number.isFinite(minKmh) ? minKmh : null,
-    throttleRel: throttle == null ? null : throttle - minDist,
+    throttleRel: throttle == null ? null : Math.round(throttle - minDist),
     apexDist: minDist,
     brakeDist: brake,
     throttleDist: throttle,

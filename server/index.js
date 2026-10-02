@@ -61,6 +61,59 @@ function lapRecord(lap) {
 }
 
 // Dados de uma pista guardada para o seletor: mapa, recordes por carro e voltas (sem traçados).
+// Dados para o relatório "Exportar para análise": as últimas `count` voltas de um carro
+// (da sessão ou de uma pista guardada), a referência (recorde do carro) e as curvas.
+function exportData({ source, trackId, carKey, count }) {
+  const take = (list) => (count > 0 ? list.slice(-count) : list);
+  const sectorsSum = (b) => (b?.every((ms) => ms != null) ? b[0] + b[1] + b[2] : null);
+  const liveIdeal = (id, car) => (timer.track?.id === id && timer.carKey === car ? timer.ideal?.ms ?? null : null);
+
+  if (source === "session") {
+    const car = carKey ?? timer.carKey;
+    const laps = take(timer.laps.filter((l) => l.car === car))
+      .map((l) => timer.getLap(l.n))
+      .filter(Boolean)
+      .map((l) => ({ label: `Volta ${l.n}`, ms: l.ms, splits: l.splits, spins: l.spins, samples: l.samples, color: l.color }));
+    const record = timer.records[car] ?? (car === timer.carKey ? { best: timer.ref, bestSectors: timer.bestSectors } : null);
+    return {
+      trackName: timer.track?.name ?? "Pista não guardada",
+      carKey: car,
+      carInfo: latest && String(latest.carOrdinal) === car ? { class: latest.carClass, pi: latest.carPI } : null,
+      ref: record?.best ? { ms: record.best.ms, samples: record.best.samples } : null,
+      bestSectors: record?.bestSectors ?? null,
+      possibleBestMs: sectorsSum(record?.bestSectors),
+      idealMs: car === timer.carKey ? timer.ideal?.ms ?? null : null,
+      corners: timer.corners,
+      laps,
+    };
+  }
+
+  const track = store.get(trackId);
+  if (!track) return null;
+  const all = readLaps(trackId).filter((l) => String(l.car?.ordinal ?? "?") === carKey);
+  const laps = take(all.map((l, i) => ({ ...l, n: i + 1 }))).map((l) => ({
+    label: `Volta ${l.n}`,
+    at: l.at,
+    ms: l.ms,
+    splits: l.splits,
+    spins: l.spins,
+    samples: l.samples,
+    color: l.color,
+  }));
+  const record = track.records?.[carKey];
+  return {
+    trackName: track.name,
+    carKey,
+    carInfo: all[all.length - 1]?.car ?? null,
+    ref: record?.best ? { ms: record.best.ms, samples: record.best.samples } : null,
+    bestSectors: record?.bestSectors ?? null,
+    possibleBestMs: sectorsSum(record?.bestSectors),
+    idealMs: liveIdeal(trackId, carKey),
+    corners: track.corners ?? null,
+    laps,
+  };
+}
+
 function trackView(id) {
   const track = store.get(id);
   if (!track) return null;
@@ -248,7 +301,9 @@ wss.on("connection", (ws) => {
         send(ws, { type: "importResult", ok: false, error: err.message });
       }
     } else if (msg.type === "getTrackView") send(ws, { type: "trackView", view: trackView(msg.id) });
-    else if (msg.type === "getSavedLap") {
+    else if (msg.type === "exportLaps") {
+      send(ws, { type: "lapsExport", requestId: msg.requestId, data: exportData(msg) });
+    } else if (msg.type === "getSavedLap") {
       const lap = readLaps(msg.trackId).find((l) => l.id === msg.lapId) ?? null;
       const ref = lap && store.get(msg.trackId)?.records?.[String(lap.car?.ordinal ?? "?")]?.best;
       send(ws, { type: "savedLap", lap: lap && { ...lap, refMs: ref?.ms ?? null, refSamples: ref?.samples ?? null } });

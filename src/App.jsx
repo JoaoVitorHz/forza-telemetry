@@ -4,6 +4,7 @@ import TrackMap from "./TrackMap.jsx";
 import Tracks from "./Tracks.jsx";
 import Sectors from "./Sectors.jsx";
 import LapHistory from "./LapHistory.jsx";
+import ExportPanel from "./ExportPanel.jsx";
 import TrackView from "./TrackView.jsx";
 import Settings from "./Settings.jsx";
 import CompareChart from "./CompareChart.jsx";
@@ -35,7 +36,7 @@ function Bar({ value, color }) {
 }
 
 export default function App() {
-  const { state, map, tracks, lapDetail, trackView, savedLap, carNames, settings, online, send } = useTelemetry(WS_URL);
+  const { state, map, tracks, lapDetail, trackView, savedLap, carNames, settings, lapsExport, online, send } = useTelemetry(WS_URL);
   const t = state?.telemetry;
   const timer = state?.timer;
 
@@ -157,6 +158,7 @@ export default function App() {
           liveCar={timer?.car}
           carNames={carNames}
           settings={settings}
+          lapsExport={lapsExport}
           send={send}
         />
       </>
@@ -253,6 +255,16 @@ export default function App() {
           </div>
 
           {settings.showLapHistory && <LapHistory laps={timer?.laps} selected={selectedLap} onSelect={selectLap} />}
+          {timer?.laps?.length > 0 && (
+            <ExportPanel
+              source="session"
+              carKey={timer.car}
+              carName={carLabel(String(timer.car), carNames, t && { class: t.carClass, pi: t.carPI })}
+              settings={settings}
+              lapsExport={lapsExport}
+              send={send}
+            />
+          )}
         </section>
 
         <section className="panel">
