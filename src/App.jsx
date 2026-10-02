@@ -176,10 +176,30 @@ export default function App() {
 
           <Row label="VOLTA" value={timer?.lapNumber || "-"} />
           <Row label="ATUAL" value={fmtTime(timer?.running ? timer.currentMs : null)} />
-          <Row label="DELTA" value={fmtDelta(delta)} className={deltaClass} />
+          <div className="row">
+            <span className="label">
+              DELTA
+              <span className="segmented small" role="group" aria-label="Comparar delta com">
+                {[
+                  ["best", "Recorde"],
+                  ["ideal", "Ideal"],
+                ].map(([value, label]) => (
+                  <button
+                    key={value}
+                    className={settings.deltaReference === value ? "active" : ""}
+                    onClick={() => send({ type: "setSettings", patch: { deltaReference: value } })}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </span>
+            </span>
+            <span className={`value ${deltaClass}`}>{fmtDelta(delta)}</span>
+          </div>
           <Row label="ÚLTIMA" value={fmtTime(timer?.lastLapMs)} />
           <Row label="MELHOR (SESSÃO)" value={fmtTime(timer?.sessionBestMs)} />
           <Row label="RECORDE" value={fmtTime(timer?.recordMs)} className="best" />
+          <Row label="VOLTA IDEAL" value={fmtTime(timer?.idealMs)} className="ideal" />
 
           <Sectors sectors={timer?.sectors} />
           {settings.lapAnalysis && timer?.lastAnalysis && (

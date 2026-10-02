@@ -760,3 +760,23 @@ body.overlay-body {
 .corners-hint {
   margin-top: 6px;
 }
+
+.setting-select {
+  background: #111;
+  color: #eee;
+  border: 1px solid #333;
+  border-radius: 4px;
+  padding: 6px 8px;
+  font: inherit;
+}
+.segmented.small {
+  margin-left: 8px;
+  vertical-align: middle;
+}
+.segmented.small button {
+  padding: 2px 8px;
+  font-size: 11px;
+}
+.value.ideal {
+  color: #4da3ff;
+}

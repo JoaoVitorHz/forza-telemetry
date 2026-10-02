@@ -16,10 +16,16 @@ const timer = new LapTimer();
 const store = new TrackStore();
 const cars = new CarStore();
 const settings = new SettingsStore();
+// Amostras das voltas guardadas de um carro numa pista (para a volta ideal).
+timer.historySamples = (trackId, carKey) =>
+  readLaps(trackId)
+    .filter((lap) => String(lap.car?.ordinal ?? "?") === carKey && lap.samples)
+    .map((lap) => lap.samples);
 const applySettings = () => {
   timer.miniCount = settings.values.miniSectors ? settings.values.miniSectorCount : 0;
   timer.autoStart = settings.values.autoStart;
   timer.autoMinLength = settings.values.autoStartMinLength;
+  timer.deltaMode = settings.values.deltaReference;
 };
 applySettings();
 

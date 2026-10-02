@@ -3,6 +3,7 @@
 export const DEFAULT_SETTINGS = {
   autoStart: true,
   autoStartMinLength: 800,
+  deltaReference: "best", // "best" = recorde, "ideal" = volta ideal
   showPedals: true,
   showLapHistory: true,
   compareChart: true,

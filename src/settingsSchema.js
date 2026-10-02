@@ -1,6 +1,6 @@
 // O que aparece na aba Configurações. Cada funcionalidade nova acrescenta aqui os seus itens
 // (e o valor por defeito em shared/settings.js).
-// type: "bool" (interruptor) | "number" (com min/max).
+// type: "bool" (interruptor) | "number" (com min/max) | "select" (com options).
 export const SETTINGS_GROUPS = [
   {
     title: "Cronómetro",
@@ -31,6 +31,16 @@ export const SETTINGS_GROUPS = [
   {
     title: "Análise",
     items: [
+      {
+        key: "deltaReference",
+        type: "select",
+        options: [
+          { value: "best", label: "Recorde" },
+          { value: "ideal", label: "Volta ideal" },
+        ],
+        label: "Delta e fantasma comparam com",
+        desc: "Volta ideal = os teus troços mais rápidos de todas as voltas deste carro nesta pista, juntos.",
+      },
       {
         key: "compareChart",
         type: "bool",

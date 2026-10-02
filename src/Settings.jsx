@@ -15,7 +15,15 @@ export default function Settings({ settings, send }) {
                 <span className="setting-label">{item.label}</span>
                 {item.desc && <span className="setting-desc">{item.desc}</span>}
               </div>
-              {item.type === "bool" ? (
+              {item.type === "select" ? (
+                <select className="setting-select" value={settings[item.key]} onChange={(e) => set(item.key, e.target.value)}>
+                  {item.options.map((o) => (
+                    <option key={o.value} value={o.value}>
+                      {o.label}
+                    </option>
+                  ))}
+                </select>
+              ) : item.type === "bool" ? (
                 <label className="switch">
                   <input type="checkbox" checked={!!settings[item.key]} onChange={(e) => set(item.key, e.target.checked)} />
                   <span />

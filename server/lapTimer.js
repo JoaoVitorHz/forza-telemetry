@@ -1,5 +1,6 @@
 import { miniSectorColors } from "../shared/miniSectors.js";
 import { analyzeLap, detectCorners, topLosses } from "../shared/analysis.js";
+import { buildIdeal } from "../shared/ideal.js";
 
 // Cronómetro próprio: no Horizon os campos de volta do jogo vêm a zero fora de corridas oficiais,
 // por isso as voltas são detetadas pela posição do carro em relação a uma linha de partida.
@@ -43,6 +44,8 @@ export class LapTimer {
     this.miniCount = 0; // n.º de mini-setores (0 = desligado), vem das Configurações
     this.autoStart = true; // deteta a partida sozinho ao fechar um circuito (Configurações)
     this.autoMinLength = 800; // comprimento mínimo do circuito (m)
+    this.deltaMode = "best"; // referência do delta e do fantasma: "best" (recorde) ou "ideal"
+    this.historySamples = null; // (idPista, carro) => amostras das voltas guardadas (dado pelo servidor)
     this.onTrackUpdate = null; // chamado quando recorde, setores ou melhores setores mudam
     this.onLapComplete = null; // chamado com cada volta fechada (com traçado), para o histórico
     this.reset();
@@ -70,6 +73,23 @@ export class LapTimer {
     const record = this.records[this.carKey];
     this.ref = record?.best ?? null;
     this.bestSectors = [...(record?.bestSectors ?? emptySectors())];
+    this.rebuildIdeal();
+  }
+
+  // Volta ideal do carro atual: melhores troços das voltas guardadas desta pista e da sessão.
+  rebuildIdeal() {
+    const pool = [];
+    if (this.track && this.historySamples) pool.push(...this.historySamples(this.track.id, this.carKey));
+    for (const lap of this.laps ?? []) {
+      const samples = lap.car === this.carKey && this.lapPaths?.get(lap.n)?.samples;
+      if (samples) pool.push(samples);
+    }
+    this.ideal = buildIdeal(pool);
+  }
+
+  // Amostras de referência do delta e do fantasma, conforme a opção escolhida.
+  deltaRefSamples() {
+    return this.deltaMode === "ideal" && this.ideal ? this.ideal.samples : this.ref?.samples;
   }
 
   // Grava o recorde/melhores setores do carro atual na tabela de recordes da pista.
@@ -200,6 +220,7 @@ export class LapTimer {
     this.commitRecord();
     this.ensureSectors();
     this.ensureCorners();
+    this.rebuildIdeal();
     this.mapVersion++;
     this.onTrackUpdate?.(this);
   }
@@ -450,6 +471,7 @@ export class LapTimer {
       this.commitRecord();
       this.onTrackUpdate?.(this);
     }
+    this.rebuildIdeal();
     this.onLapComplete?.(this.getLap(this.lapNumber));
     this.beginLap(pos);
   }
@@ -475,9 +497,9 @@ export class LapTimer {
     return true;
   }
 
-  // Delta = tempo atual − tempo do recorde à mesma distância percorrida.
+  // Delta = tempo atual − tempo da referência (recorde ou volta ideal) à mesma distância percorrida.
   deltaMs() {
-    const best = this.ref?.samples;
+    const best = this.deltaRefSamples();
     if (!this.running || !best || best.length < 2 || this.lapDist > best[best.length - 1][0]) return null;
     let lo = 0;
     let hi = best.length - 1;
@@ -492,11 +514,12 @@ export class LapTimer {
     return this.currentMs - refMs;
   }
 
-  // Fantasma: onde estaria o carro do recorde com o mesmo tempo de volta.
+  // Fantasma: onde estaria o carro da referência (recorde ou volta ideal) com o mesmo tempo de volta.
+  // A posição é tirada do traçado do recorde.
   ghost() {
     const ref = this.ref;
-    if (!this.running || !ref?.samples?.length || !ref.path?.length) return null;
-    const samples = ref.samples;
+    const samples = this.deltaRefSamples();
+    if (!this.running || !samples?.length || !ref?.path?.length) return null;
     if (this.currentMs >= samples[samples.length - 1][1]) return null;
     // Distância do recorde neste instante (as amostras estão ordenadas por tempo).
     let lo = 0;
@@ -533,6 +556,8 @@ export class LapTimer {
       lastLapMs: this.lastLapMs,
       sessionBestMs: this.sessionBestMs,
       recordMs: this.ref?.ms ?? null,
+      idealMs: this.ideal?.ms ?? null,
+      deltaMode: this.deltaMode === "ideal" && this.ideal ? "ideal" : "best",
       laps: this.laps,
       manualPause: this.manualPause,
       lastAnalysis: this.lastAnalysis,
