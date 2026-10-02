@@ -14,6 +14,8 @@ const MAX_STEP_M = 50; // salto maior num pacote = teleporte/reinício, não con
 const PATH_STEP_M = 3;
 const SAMPLE_STEP_M = 2; // resolução das amostras guardadas para o delta
 const GATE_RADIUS = 30; // m — largura máxima da "linha" de cada setor
+const SPIN_MIN_THROTTLE = 77; // acelerador (0–255, ≈30%) a partir do qual a patinagem conta como destracionar
+const SPIN_MIN_KMH = 5;
 const IDEAL_GATES = 24; // linhas fixas que dividem a volta em troços para a volta ideal
 const SCOUT_STEP_M = 2; // resolução do trajeto guardado à procura de um circuito
 const SCOUT_MAX_POINTS = 20_000; // ~40 km de trajeto
@@ -24,6 +26,14 @@ const REWIND_MATCH_M = 8; // depois de retroceder o carro reaparece num ponto j�
 const REWIND_MIN_BACK_M = 5; // recuos menores contam como pausa (o carro ficou no mesmo sítio)
 
 const round1 = (v) => Math.round(v * 10) / 10;
+
+// Colunas de telemetria de cada amostra: km/h, acelerador %, travão %, patinagem das rodas de tração ×100.
+const traces = (t) => [
+  Math.round((t?.speed ?? 0) * 3.6),
+  Math.round((t?.throttle ?? 0) / 2.55),
+  Math.round((t?.brake ?? 0) / 2.55),
+  Math.round(Math.min(t?.drivenSlip ?? 0, 9.99) * 100),
+];
 const emptySectors = () => [null, null, null];
 
 // Verdadeiro se o movimento prev→t vai no sentido da partida (ou se o sentido ainda é desconhecido).
@@ -45,6 +55,8 @@ export class LapTimer {
     this.miniCount = 0; // n.º de mini-setores (0 = desligado), vem das Configurações
     this.autoStart = true; // deteta a partida sozinho ao fechar um circuito (Configurações)
     this.autoMinLength = 800; // comprimento mínimo do circuito (m)
+    this.spinThreshold = 0.3; // patinagem das rodas de tração que conta como destracionar (Configurações)
+    this.tractionLoss = false; // a destracionar neste momento
     this.deltaMode = "best"; // referência do delta e do fantasma: "best" (recorde) ou "ideal"
     this.historyLaps = null; // (idPista, carro) => voltas guardadas { ms, samples, gateTimes } (dado pelo servidor)
     this.onTrackUpdate = null; // chamado quando recorde, setores ou melhores setores mudam
@@ -247,7 +259,8 @@ export class LapTimer {
     this.lapDist = 0;
     // 1.ª amostra já com velocidade e pedais (do último pacote), como as restantes.
     const p = this.prev;
-    this.samples = [[0, 0, Math.round((p?.speed ?? 0) * 3.6), Math.round((p?.throttle ?? 0) / 2.55), Math.round((p?.brake ?? 0) / 2.55)]];
+    this.samples = [[0, 0, ...traces(p)]];
+    this.spinEvents = 0; // vezes que destracionou nesta volta
     this.partial = false; // volta apanhada a meio (sem origem de distância fiável)
     this.samplePos = [{ x: pos.x, z: pos.z }]; // posição de cada amostra (para desfazer um retroceder)
     this.path = [{ x: pos.x, z: pos.z }];
@@ -272,6 +285,11 @@ export class LapTimer {
     this.paused = !t.isRaceOn;
     if (!t.isRaceOn || this.manualPause) return;
     this.setCar(String(t.carOrdinal));
+
+    // Destracionar: rodas de tração a patinar com o pé no acelerador. Conta cada vez que começa.
+    const loss = t.throttle >= SPIN_MIN_THROTTLE && t.speed * 3.6 > SPIN_MIN_KMH && t.drivenSlip > this.spinThreshold;
+    if (loss && !this.tractionLoss && this.running) this.spinEvents++;
+    this.tractionLoss = loss;
 
     // Corrida oficial: o jogo envia o tempo da volta; fora dela vem a zero. (O "tempo de corrida"
     // não serve: no FH6 conta sempre, mesmo em roaming livre.) Ao passar a meta o tempo de volta
@@ -397,14 +415,8 @@ export class LapTimer {
   advance(t, step, prevMs) {
     this.lapDist += step;
     this.samplePos.push({ x: t.x, z: t.z });
-    // [distância, tempo, km/h, acelerador %, travão %] — delta e gráfico de comparação
-    this.samples.push([
-      this.lapDist,
-      this.currentMs,
-      Math.round(t.speed * 3.6),
-      Math.round(t.throttle / 2.55),
-      Math.round(t.brake / 2.55),
-    ]);
+    // [distância, tempo, km/h, acelerador %, travão %, patinagem ×100] — delta, gráfico e análise
+    this.samples.push([this.lapDist, this.currentMs, ...traces(t)]);
     const last = this.path[this.path.length - 1];
     if (Math.hypot(t.x - last.x, t.z - last.z) >= PATH_STEP_M) {
       this.path.push({ x: t.x, z: t.z });
@@ -520,7 +532,7 @@ export class LapTimer {
     // Histórico com as cores do momento (como nos ecrãs de tempos da F1).
     const lapColor =
       !this.ref || lap < this.ref.ms ? "purple" : this.sessionBestMs == null || lap < this.sessionBestMs ? "green" : "yellow";
-    this.laps.push({ n: this.lapNumber, ms: lap, color: lapColor, splits: this.splits, car: this.carKey });
+    this.laps.push({ n: this.lapNumber, ms: lap, color: lapColor, splits: this.splits, car: this.carKey, spins: this.spinEvents });
     this.path.push({ x: pos.x, z: pos.z });
     const lapPath = this.path.map((p) => ({ x: round1(p.x), z: round1(p.z) }));
     const lapSamples = downsample(this.samples);
@@ -534,7 +546,7 @@ export class LapTimer {
     if (this.laps.length > MAX_LAP_HISTORY) this.lapPaths.delete(this.laps.shift().n);
 
     // Onde se perdeu tempo, em relação à referência antes desta volta.
-    const analysis = this.corners && this.ref ? analyzeLap(lapSamples, this.ref.samples, this.corners) : null;
+    const analysis = this.corners && this.ref ? analyzeLap(lapSamples, this.ref.samples, this.corners, this.spinThreshold * 100) : null;
     this.lastAnalysis = analysis ? { n: this.lapNumber, items: topLosses(analysis) } : null;
 
     this.lastLapMs = lap;
@@ -631,6 +643,8 @@ export class LapTimer {
       deltaMs: this.deltaMs(),
       ghost: this.ghost(),
       partialLap: this.partial,
+      tractionLoss: this.tractionLoss,
+      spinEvents: this.running ? this.spinEvents : 0,
       miniSectors:
         this.running && !this.partial && this.miniCount ? miniSectorColors(this.samples, this.ref?.samples, this.miniCount, false) : null,
       lastLapMs: this.lastLapMs,

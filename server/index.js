@@ -26,6 +26,7 @@ const applySettings = () => {
   timer.autoStart = settings.values.autoStart;
   timer.autoMinLength = settings.values.autoStartMinLength;
   timer.deltaMode = settings.values.deltaReference;
+  timer.spinThreshold = settings.values.tractionSensitivity / 100;
 };
 applySettings();
 
@@ -51,6 +52,7 @@ function lapRecord(lap) {
     ms: lap.ms,
     color: lap.color,
     splits: lap.splits,
+    spins: lap.spins, // vezes que destracionou
     splitIdx: lap.splitIdx,
     path: lap.path,
     samples: lap.samples, // para o delta, se esta volta voltar a ser recorde

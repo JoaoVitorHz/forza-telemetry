@@ -4,6 +4,8 @@ export const DEFAULT_SETTINGS = {
   autoStart: true,
   autoStartMinLength: 800,
   deltaReference: "best", // "best" = recorde, "ideal" = volta ideal
+  tractionAlert: true,
+  tractionSensitivity: 30, // patinagem (×100) das rodas de tração que conta como destracionar
   showPedals: true,
   showLapHistory: true,
   compareChart: true,

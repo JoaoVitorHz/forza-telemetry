@@ -7,7 +7,7 @@ import CompareChart from "./CompareChart.jsx";
 import LapColorToggle from "./LapColorToggle.jsx";
 import LapAnalysis from "./LapAnalysis.jsx";
 import CornerTable, { cornerMarks } from "./CornerTable.jsx";
-import { analyzeLap, topLosses } from "../shared/analysis.js";
+import { analyzeLap, spinRanges, topLosses } from "../shared/analysis.js";
 import { miniSectorColors } from "../shared/miniSectors.js";
 
 // Vista de uma pista guardada: recordes por carro, mapa e todas as voltas já feitas nela.
@@ -17,8 +17,13 @@ export default function TrackView({ view, savedLap, activeTrackId, liveCar, carN
   const [lapColorMode, setLapColorMode] = useState("sectors");
   const shownLap = selected && savedLap?.id === selected ? savedLap : null;
   const lapAnalysis = useMemo(
-    () => (shownLap ? analyzeLap(shownLap.samples, shownLap.refSamples, view?.corners) : null),
-    [shownLap, view?.corners],
+    () => (shownLap ? analyzeLap(shownLap.samples, shownLap.refSamples, view?.corners, settings.tractionSensitivity) : null),
+    [shownLap, view?.corners, settings.tractionSensitivity],
+  );
+  // Trechos onde destracionou nesta volta (marcados a vermelho no mapa).
+  const lapSpins = useMemo(
+    () => (settings.tractionAlert && shownLap ? spinRanges(shownLap.samples, settings.tractionSensitivity) : null),
+    [settings.tractionAlert, settings.tractionSensitivity, shownLap],
   );
   const lapLosses = settings.lapAnalysis && lapAnalysis ? topLosses(lapAnalysis) : null;
   // Curva ampliada no mapa (só numa volta escolhida).
@@ -137,6 +142,7 @@ export default function TrackView({ view, savedLap, activeTrackId, liveCar, carN
           selectedCorner={corner}
           onCornerClick={lapAnalysis ? setCorner : undefined}
           focus={cornerFocus}
+          spinRanges={lapSpins}
         />
         {shownLap && settings.compareChart && <CompareChart lap={shownLap} label={`Volta ${shownN}`} />}
         {lapLosses && <LapAnalysis title={`ONDE PERDESTE TEMPO • VOLTA ${shownN}`} items={lapLosses} />}

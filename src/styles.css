@@ -799,3 +799,30 @@ body.overlay-body {
 .value.ideal {
   color: #4da3ff;
 }
+
+.traction-alert {
+  color: #fff;
+  background: #c0392b;
+  border-radius: 4px;
+  padding: 2px 8px;
+  font-size: 13px;
+  font-weight: 800;
+  letter-spacing: 0.03em;
+}
+.traction-ok {
+  color: #888;
+  font-size: 13px;
+}
+.overlay-traction {
+  margin-top: 6px;
+  text-align: center;
+  color: #fff;
+  background: #c0392b;
+  border-radius: 4px;
+  padding: 2px 6px;
+  font-size: 13px;
+  font-weight: 800;
+}
+.history td.slower {
+  color: #ff5c5c;
+}

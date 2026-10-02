@@ -22,6 +22,25 @@ export const SETTINGS_GROUPS = [
     ],
   },
   {
+    title: "Tração",
+    items: [
+      {
+        key: "tractionAlert",
+        type: "bool",
+        label: "Avisar quando destracionar",
+        desc: "Aviso na hora, contagem por volta, trechos marcados no mapa e causa na análise das curvas.",
+      },
+      {
+        key: "tractionSensitivity",
+        type: "number",
+        min: 10,
+        max: 100,
+        label: "Patinagem que conta como destracionar",
+        desc: "Acelerando normal as rodas patinam ~10; numa arrancada forte 40–65. Padrão: 30. Menor = avisa mais.",
+      },
+    ],
+  },
+  {
     title: "Painel ao vivo",
     items: [
       { key: "showPedals", type: "bool", label: "Rotações e pedais", desc: "Velocidade, mudança e barras de rotações, acelerador e travão." },

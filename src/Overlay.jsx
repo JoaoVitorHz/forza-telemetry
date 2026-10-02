@@ -41,7 +41,7 @@ export default function Overlay({ kind }) {
   );
 }
 
-function DeltaBody({ state }) {
+function DeltaBody({ state, settings }) {
   const timer = state?.timer;
   const delta = timer?.deltaMs;
   const deltaClass = delta == null ? "" : delta < 0 ? "faster" : "slower";
@@ -54,6 +54,7 @@ function DeltaBody({ state }) {
         </span>
         <b>{fmtTime(timer?.running ? timer.currentMs : null)}</b>
       </div>
+      {settings.tractionAlert && timer?.tractionLoss && <div className="overlay-traction">⚠ DESTRACIONANDO</div>}
     </>
   );
 }

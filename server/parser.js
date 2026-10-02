@@ -2,15 +2,22 @@
 // FH4/FH5 enviam 324 bytes: secção "sled" (0-231) + 12 bytes extra do Horizon + secção "dash".
 // FM7 (311) e FM2023 (331) não têm os 12 bytes extra, por isso o "dash" começa em 232.
 
+// Rodas: frente-esq., frente-dir., trás-esq., trás-dir. Tração: 0 = dianteira, 1 = traseira, 2 = integral.
+const DRIVEN_WHEELS = { 0: [0, 1], 1: [2, 3], 2: [0, 1, 2, 3] };
+
 export function parsePacket(buf) {
   if (buf.length < 311) return null;
   const dash = buf.length === 324 ? 244 : 232;
+  // Patinagem das rodas de tração (0 = aderência total; acelerar normal ≈ 0,1; destracionar > 0,3).
+  const slipRatio = [84, 88, 92, 96].map((o) => buf.readFloatLE(o));
+  const driven = DRIVEN_WHEELS[buf.readInt32LE(224)] ?? DRIVEN_WHEELS[2];
 
   return {
     isRaceOn: buf.readInt32LE(0) === 1,
     timestampMs: buf.readUInt32LE(4),
     maxRpm: buf.readFloatLE(8),
     rpm: buf.readFloatLE(16),
+    drivenSlip: Math.max(0, ...driven.map((i) => slipRatio[i])),
     carOrdinal: buf.readInt32LE(212),
     carClass: buf.readInt32LE(216),
     carPI: buf.readInt32LE(220),

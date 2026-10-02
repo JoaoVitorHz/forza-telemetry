@@ -10,7 +10,7 @@ import CompareChart from "./CompareChart.jsx";
 import LapColorToggle from "./LapColorToggle.jsx";
 import LapAnalysis from "./LapAnalysis.jsx";
 import CornerTable, { cornerMarks } from "./CornerTable.jsx";
-import { analyzeLap, topLosses } from "../shared/analysis.js";
+import { analyzeLap, spinRanges, topLosses } from "../shared/analysis.js";
 import { miniSectorColors } from "../shared/miniSectors.js";
 import { fmtDelta, fmtTime } from "./format.js";
 import { askCarName, carLabel } from "./cars.js";
@@ -53,8 +53,13 @@ export default function App() {
   const viewedLap = selectedLap != null && lapDetail?.n === selectedLap ? lapDetail : null;
   const [lapColorMode, setLapColorMode] = useState("sectors");
   const lapAnalysis = useMemo(
-    () => (viewedLap ? analyzeLap(viewedLap.samples, viewedLap.refSamples, map?.corners) : null),
-    [viewedLap, map?.corners],
+    () => (viewedLap ? analyzeLap(viewedLap.samples, viewedLap.refSamples, map?.corners, settings.tractionSensitivity) : null),
+    [viewedLap, map?.corners, settings.tractionSensitivity],
+  );
+  // Trechos onde destracionou nesta volta (marcados a vermelho no mapa).
+  const lapSpins = useMemo(
+    () => (settings.tractionAlert && viewedLap ? spinRanges(viewedLap.samples, settings.tractionSensitivity) : null),
+    [settings.tractionAlert, settings.tractionSensitivity, viewedLap],
   );
   const lapLosses = settings.lapAnalysis && lapAnalysis ? topLosses(lapAnalysis) : null;
   // Curva ampliada no mapa (só numa volta escolhida).
@@ -175,6 +180,18 @@ export default function App() {
           )}
 
           <Row label="VOLTA" value={timer?.lapNumber || "-"} />
+          {settings.tractionAlert && (
+            <div className="row">
+              <span className="label">TRAÇÃO</span>
+              {timer?.tractionLoss ? (
+                <span className="traction-alert">⚠ DESTRACIONANDO</span>
+              ) : (
+                <span className="traction-ok">
+                  OK{timer?.spinEvents ? ` • destracionou ${timer.spinEvents}× nesta volta` : ""}
+                </span>
+              )}
+            </div>
+          )}
           <Row label="ATUAL" value={fmtTime(timer?.running ? timer.currentMs : null)} />
           <div className="row">
             <span className="label">
@@ -256,6 +273,7 @@ export default function App() {
             selectedCorner={corner}
             onCornerClick={lapAnalysis ? setCorner : undefined}
             focus={cornerFocus}
+            spinRanges={lapSpins}
           />
           {viewedLap && settings.compareChart && <CompareChart lap={viewedLap} label={`Volta ${viewedLap.n}`} />}
           {lapLosses && <LapAnalysis title={`ONDE PERDESTE TEMPO • VOLTA ${viewedLap.n}`} items={lapLosses} />}

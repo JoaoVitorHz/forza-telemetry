@@ -43,6 +43,17 @@ function segmentsByDistance(path, colors) {
   return segments;
 }
 
+// Pedaços de um traçado entre frações do seu comprimento: ranges = [[início, fim], …].
+function slicesByFraction(path, ranges) {
+  if (!path?.length || !ranges?.length) return [];
+  const cum = [0];
+  for (let i = 1; i < path.length; i++) {
+    cum.push(cum[i - 1] + Math.hypot(path[i].x - path[i - 1].x, path[i].z - path[i - 1].z));
+  }
+  const total = cum[cum.length - 1];
+  return ranges.map(([f0, f1]) => path.filter((_, i) => cum[i] >= f0 * total - 3 && cum[i] <= f1 * total + 3)).filter((pts) => pts.length > 1);
+}
+
 // Desenha o traçado da melhor volta (ou o rasto da volta atual enquanto não há nenhuma),
 // a linha de partida e a posição do carro. Com `lap`, mostra essa volta colorida por setor.
 // miniColors: mini-setores (ao vivo pintam o traçado de referência; com `lap` e
@@ -61,6 +72,7 @@ export default function TrackMap({
   selectedCorner = null,
   onCornerClick,
   focus = null,
+  spinRanges = null,
 }) {
   const canvasRef = useRef(null);
   const trailRef = useRef([]);
@@ -136,6 +148,8 @@ export default function TrackMap({
       } else {
         for (const seg of sectorSegments(lap)) line(seg.pts, seg.color, 5);
       }
+      // Trechos onde destracionou: vermelho por cima do traçado da volta.
+      for (const pts of slicesByFraction(lap.path, spinRanges)) line(pts, "#e74c3c", 9);
     } else {
       line(ref, "#555", 9);
       line(ref, "#bbb", 5);
@@ -194,7 +208,7 @@ export default function TrackMap({
       ctx.fillText(`REC ${ghost.gapM > 0 ? "+" : ""}${ghost.gapM} m`, gx + 10, gy - 8);
     }
     if (pos && !lap) dot(pos, "#fff", 6);
-  }, [map, pos, lapNumber, lap, ghost, miniColors, lapColorMode, showCorners, selectedCorner, focus]);
+  }, [map, pos, lapNumber, lap, ghost, miniColors, lapColorMode, showCorners, selectedCorner, focus, spinRanges]);
 
   const onClick = (e) => {
     if (!onCornerClick) return;

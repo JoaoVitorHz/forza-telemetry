@@ -5,6 +5,7 @@ import { fmtSector, fmtTime } from "./format.js";
 // Clicar numa volta mostra o traçado dela no mapa; clicar outra vez volta ao vivo.
 export default function LapHistory({ laps, selected, onSelect }) {
   if (!laps?.length) return null;
+  const showSpins = laps.some((l) => l.spins != null);
 
   return (
     <div className="history">
@@ -18,6 +19,7 @@ export default function LapHistory({ laps, selected, onSelect }) {
               <th>S1</th>
               <th>S2</th>
               <th>S3</th>
+              {showSpins && <th title="Vezes que destracionou">Destr.</th>}
             </tr>
           </thead>
           <tbody>
@@ -40,6 +42,7 @@ export default function LapHistory({ laps, selected, onSelect }) {
                     </td>
                   );
                 })}
+                {showSpins && <td className={lap.spins ? "slower" : "none"}>{lap.spins ?? "--"}</td>}
               </tr>
               );
             })}
