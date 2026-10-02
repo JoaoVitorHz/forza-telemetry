@@ -585,6 +585,18 @@ body.overlay-body {
   line-height: 1.1;
   text-shadow: 0 1px 3px #000;
 }
+.overlay-sub {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 12px;
+  color: #aaa;
+}
+.overlay-sub b {
+  font-size: 16px;
+  color: #eee;
+  font-variant-numeric: tabular-nums;
+}
 .overlay-times {
   display: grid;
   grid-template-columns: auto 1fr;

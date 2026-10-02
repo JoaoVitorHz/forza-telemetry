@@ -14,8 +14,9 @@ export const DEFAULT_SETTINGS = {
   miniSectorCount: 12,
   exportImport: true,
   exportIncludeLaps: true,
-  overlaySectors: true,
-  overlayMap: false,
+  overlayDeltaWindow: true,
+  overlaySectorsWindow: true,
+  overlayMapWindow: true,
   overlayOpacity: 80,
 };
 
