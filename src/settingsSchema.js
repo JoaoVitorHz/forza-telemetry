@@ -38,6 +38,12 @@ export const SETTINGS_GROUPS = [
         desc: "Ao escolher uma volta, compara delta, velocidade, acelerador e travão com o recorde ao longo da pista.",
       },
       {
+        key: "lapAnalysis",
+        type: "bool",
+        label: "Onde perdeste tempo",
+        desc: "No fim de cada volta (e ao escolher uma volta), mostra as curvas onde perdeste mais tempo e a causa provável.",
+      },
+      {
         key: "ghost",
         type: "bool",
         label: "Fantasma no mapa",

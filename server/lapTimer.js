@@ -1,4 +1,5 @@
 import { miniSectorColors } from "../shared/miniSectors.js";
+import { analyzeLap, detectCorners, topLosses } from "../shared/analysis.js";
 
 // Cronómetro próprio: no Horizon os campos de volta do jogo vêm a zero fora de corridas oficiais,
 // por isso as voltas são detetadas pela posição do carro em relação a uma linha de partida.
@@ -55,6 +56,8 @@ export class LapTimer {
     this.scoutMs = 0;
     this.start = null; // { x, z, dir: { x, z } | null }
     this.sectors = null; // divisões S1/S2: [{ x, z, dir }, { x, z, dir }]
+    this.corners = null; // curvas da pista: [{ frac, x, z }] (frac = posição em fração da volta)
+    this.lastAnalysis = null; // { n, items } — onde se perdeu tempo na última volta
     this.trackPath = null; // traçado da pista para o mapa (de qualquer carro)
     this.records = {}; // por carro: { [carKey]: { best, bestSectors } }
     this.applyCar();
@@ -173,10 +176,12 @@ export class LapTimer {
     this.track = { id: track.id, name: track.name };
     this.start = track.start;
     this.sectors = track.sectors ?? null;
+    this.corners = track.corners ?? null;
     this.trackPath = track.path ?? null;
     this.records = structuredClone(track.records ?? {});
     this.applyCar();
-    if (this.ensureSectors()) this.onTrackUpdate?.(this);
+    const sectorsAdded = this.ensureSectors();
+    if (this.ensureCorners() || sectorsAdded) this.onTrackUpdate?.(this);
   }
 
   // Associa uma pista guardada a meio de uma corrida, sem perder as voltas já feitas.
@@ -185,6 +190,7 @@ export class LapTimer {
     this.track = { id: track.id, name: track.name };
     this.start = track.start;
     this.sectors = track.sectors ?? this.sectors;
+    this.corners = track.corners ?? this.corners;
     this.trackPath = track.path ?? this.trackPath;
     const saved = track.records?.[this.carKey];
     if (saved?.best && (!this.ref || saved.best.ms <= this.ref.ms)) this.ref = saved.best;
@@ -193,6 +199,7 @@ export class LapTimer {
     this.records = { ...structuredClone(track.records ?? {}) };
     this.commitRecord();
     this.ensureSectors();
+    this.ensureCorners();
     this.mapVersion++;
     this.onTrackUpdate?.(this);
   }
@@ -426,6 +433,10 @@ export class LapTimer {
     this.lapPaths.set(this.lapNumber, { path: lapPath, splitIdx: this.splitIdx, samples: lapSamples });
     if (this.laps.length > MAX_LAP_HISTORY) this.lapPaths.delete(this.laps.shift().n);
 
+    // Onde se perdeu tempo, em relação à referência antes desta volta.
+    const analysis = this.corners && this.ref ? analyzeLap(lapSamples, this.ref.samples, this.corners) : null;
+    this.lastAnalysis = analysis ? { n: this.lapNumber, items: topLosses(analysis) } : null;
+
     this.lastLapMs = lap;
     if (this.sessionBestMs == null || lap < this.sessionBestMs) this.sessionBestMs = lap;
     if (!this.ref || lap < this.ref.ms) {
@@ -434,6 +445,7 @@ export class LapTimer {
       changed = true;
     }
     if (this.ensureSectors()) changed = true;
+    if (this.ensureCorners()) changed = true;
     if (changed) {
       this.commitRecord();
       this.onTrackUpdate?.(this);
@@ -448,6 +460,18 @@ export class LapTimer {
     if (this.sectors || !path || path.length < 10) return false;
     this.sectors = computeSectors(path);
     this.mapVersion++;
+    return true;
+  }
+
+  // Deteta as curvas na referência (precisa de velocidade nas amostras). Ficam fixas na pista
+  // para a numeração não mudar.
+  ensureCorners() {
+    if (this.corners || !this.ref?.samples || !this.ref.path?.length) return false;
+    const found = detectCorners(this.ref.samples);
+    if (!found.length) return false;
+    this.corners = found.map((c) => ({ frac: Math.round(c.frac * 10000) / 10000, ...pointAtFraction(this.ref, c.frac) }));
+    this.mapVersion++;
+    console.log(`[pista] ${found.length} curvas detetadas`);
     return true;
   }
 
@@ -511,6 +535,7 @@ export class LapTimer {
       recordMs: this.ref?.ms ?? null,
       laps: this.laps,
       manualPause: this.manualPause,
+      lastAnalysis: this.lastAnalysis,
       sectors: {
         enabled: !!this.sectors,
         current: this.splits,
@@ -530,22 +555,41 @@ export class LapTimer {
   }
 
   mapData() {
-    return { start: this.start, refPath: this.ref?.path ?? this.trackPath, sectors: this.sectors, mapVersion: this.mapVersion };
+    return {
+      start: this.start,
+      refPath: this.ref?.path ?? this.trackPath,
+      sectors: this.sectors,
+      corners: this.corners,
+      mapVersion: this.mapVersion,
+    };
   }
 }
 
-// Ponto do traçado do recorde à distância d (comprimentos acumulados guardados em cache).
+// Comprimentos acumulados do traçado do recorde (em cache).
 const cumCache = new WeakMap();
-function pointAtDistance(ref, d) {
-  const path = ref.path;
+function cumulative(ref) {
   let cum = cumCache.get(ref);
   if (!cum) {
+    const path = ref.path;
     cum = [0];
     for (let i = 1; i < path.length; i++) {
       cum.push(cum[i - 1] + Math.hypot(path[i].x - path[i - 1].x, path[i].z - path[i - 1].z));
     }
     cumCache.set(ref, cum);
   }
+  return cum;
+}
+
+function pointAtFraction(ref, frac) {
+  const cum = cumulative(ref);
+  const p = pointAtDistance(ref, frac * cum[cum.length - 1]);
+  return { x: round1(p.x), z: round1(p.z) };
+}
+
+// Ponto do traçado do recorde à distância d.
+function pointAtDistance(ref, d) {
+  const path = ref.path;
+  const cum = cumulative(ref);
   if (d <= 0) return { x: path[0].x, z: path[0].z };
   let lo = 1;
   let hi = cum.length - 1;

@@ -5,6 +5,8 @@ import { fmtSector, fmtTime } from "./format.js";
 import { askCarName, carLabel } from "./cars.js";
 import CompareChart from "./CompareChart.jsx";
 import LapColorToggle from "./LapColorToggle.jsx";
+import LapAnalysis from "./LapAnalysis.jsx";
+import { analyzeLap, topLosses } from "../shared/analysis.js";
 import { miniSectorColors } from "../shared/miniSectors.js";
 
 // Vista de uma pista guardada: recordes por carro, mapa e todas as voltas já feitas nela.
@@ -13,6 +15,11 @@ export default function TrackView({ view, savedLap, activeTrackId, liveCar, carN
   const [carKey, setCarKey] = useState(null);
   const [lapColorMode, setLapColorMode] = useState("sectors");
   const shownLap = selected && savedLap?.id === selected ? savedLap : null;
+  const lapLosses = useMemo(
+    () =>
+      settings.lapAnalysis && shownLap ? topLosses(analyzeLap(shownLap.samples, shownLap.refSamples, view?.corners)) : null,
+    [settings.lapAnalysis, shownLap, view?.corners],
+  );
   const lapMini = useMemo(
     () =>
       settings.miniSectors && shownLap
@@ -117,6 +124,7 @@ export default function TrackView({ view, savedLap, activeTrackId, liveCar, carN
           lapColorMode={lapColorMode}
         />
         {shownLap && settings.compareChart && <CompareChart lap={shownLap} label={`Volta ${shownN}`} />}
+        {lapLosses && <LapAnalysis title={`ONDE PERDESTE TEMPO • VOLTA ${shownN}`} items={lapLosses} />}
       </section>
     </div>
   );

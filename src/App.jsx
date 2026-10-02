@@ -8,6 +8,8 @@ import TrackView from "./TrackView.jsx";
 import Settings from "./Settings.jsx";
 import CompareChart from "./CompareChart.jsx";
 import LapColorToggle from "./LapColorToggle.jsx";
+import LapAnalysis from "./LapAnalysis.jsx";
+import { analyzeLap, topLosses } from "../shared/analysis.js";
 import { miniSectorColors } from "../shared/miniSectors.js";
 import { fmtDelta, fmtTime } from "./format.js";
 import { askCarName, carLabel } from "./cars.js";
@@ -49,6 +51,11 @@ export default function App() {
   const [selectedLap, setSelectedLap] = useState(null);
   const viewedLap = selectedLap != null && lapDetail?.n === selectedLap ? lapDetail : null;
   const [lapColorMode, setLapColorMode] = useState("sectors");
+  const lapLosses = useMemo(
+    () =>
+      settings.lapAnalysis && viewedLap ? topLosses(analyzeLap(viewedLap.samples, viewedLap.refSamples, map?.corners)) : null,
+    [settings.lapAnalysis, viewedLap, map?.corners],
+  );
   const lapMini = useMemo(
     () =>
       settings.miniSectors && viewedLap
@@ -165,6 +172,9 @@ export default function App() {
           <Row label="RECORDE" value={fmtTime(timer?.recordMs)} className="best" />
 
           <Sectors sectors={timer?.sectors} />
+          {settings.lapAnalysis && timer?.lastAnalysis && (
+            <LapAnalysis title={`ONDE PERDESTE TEMPO • VOLTA ${timer.lastAnalysis.n}`} items={timer.lastAnalysis.items} />
+          )}
 
           {t && settings.showPedals && (
             <div className="live">
@@ -214,6 +224,7 @@ export default function App() {
             lapColorMode={lapColorMode}
           />
           {viewedLap && settings.compareChart && <CompareChart lap={viewedLap} label={`Volta ${viewedLap.n}`} />}
+          {lapLosses && <LapAnalysis title={`ONDE PERDESTE TEMPO • VOLTA ${viewedLap.n}`} items={lapLosses} />}
           <Tracks tracks={tracks} timer={timer} settings={settings} send={send} />
         </section>
       </div>

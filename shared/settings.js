@@ -6,6 +6,7 @@ export const DEFAULT_SETTINGS = {
   showPedals: true,
   showLapHistory: true,
   compareChart: true,
+  lapAnalysis: true,
   ghost: true,
   miniSectors: true,
   miniSectorCount: 12,

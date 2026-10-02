@@ -26,7 +26,7 @@ applySettings();
 // Recorde, setores ou melhores setores mudaram numa pista guardada: grava logo no ficheiro.
 timer.onTrackUpdate = () => {
   if (!timer.track) return;
-  store.update(timer.track.id, { records: timer.records, sectors: timer.sectors, path: timer.trackPath });
+  store.update(timer.track.id, { records: timer.records, sectors: timer.sectors, corners: timer.corners, path: timer.trackPath });
   console.log(`[pistas] "${timer.track.name}" atualizada`);
   broadcastTracks();
 };
@@ -82,6 +82,7 @@ function trackView(id) {
     name: track.name,
     start: track.start,
     sectors: track.sectors ?? null,
+    corners: track.corners ?? null,
     path: track.path ?? null,
     cars: Object.values(byCar),
     laps,
@@ -94,13 +95,13 @@ const EXPORT_FORMAT = "forza-telemetry-track";
 function exportTrack(id, includeLaps) {
   const track = store.get(id);
   if (!track) return null;
-  const { name, start, sectors, path, records } = track;
+  const { name, start, sectors, corners, path, records } = track;
   return {
     format: EXPORT_FORMAT,
     version: 1,
     exportedAt: new Date().toISOString(),
     carNames: cars.names,
-    track: { name, start, sectors, path, records },
+    track: { name, start, sectors, corners, path, records },
     laps: includeLaps ? readLaps(id) : [],
   };
 }
@@ -115,7 +116,7 @@ function importTrack(data) {
   const t = data.track;
   const records = t.records && typeof t.records === "object" ? t.records : {};
   const name = `${String(t.name ?? "Pista").slice(0, 50)} (importada)`;
-  const track = store.add({ name, start: t.start, sectors: t.sectors ?? null, path: t.path ?? null, records });
+  const track = store.add({ name, start: t.start, sectors: t.sectors ?? null, corners: t.corners ?? null, path: t.path ?? null, records });
   for (const lap of Array.isArray(data.laps) ? data.laps : []) {
     if (Number.isFinite(lap?.ms)) appendLap(track.id, lap);
   }
@@ -246,7 +247,14 @@ wss.on("connection", (ws) => {
     else if (msg.type === "saveTrack" && timer.start && !timer.track) {
       const name = String(msg.name ?? "").trim().slice(0, 60) || `Pista ${store.tracks.length + 1}`;
       timer.commitRecord();
-      const track = store.add({ name, start: timer.start, sectors: timer.sectors, path: timer.trackPath, records: timer.records });
+      const track = store.add({
+        name,
+        start: timer.start,
+        sectors: timer.sectors,
+        corners: timer.corners,
+        path: timer.trackPath,
+        records: timer.records,
+      });
       timer.track = { id: track.id, name: track.name };
       // As voltas desta sessão (antes de guardar) também entram no histórico da pista.
       for (const l of timer.laps) {
