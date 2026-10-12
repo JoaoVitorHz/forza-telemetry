@@ -4,6 +4,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { headingOk } from "./lapTimer.js";
 import { readLaps } from "./lapStore.js";
+import { cornersAreCurrent, detectCornersFromPath } from "../shared/analysis.js";
 
 const FILE = process.env.TRACKS_FILE || path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "data", "tracks.json");
 
@@ -15,7 +16,7 @@ export class TrackStore {
     } catch (err) {
       if (err.code !== "ENOENT") console.error("[pistas] erro a ler tracks.json:", err.message);
     }
-    if (this.tracks.map((t) => [migrate(t), reconcile(t)].some(Boolean)).some(Boolean)) this.save();
+    if (this.tracks.map((t) => [migrate(t), reconcile(t), repairPath(t), refreshCorners(t)].some(Boolean)).some(Boolean)) this.save();
     console.log(`[pistas] ${this.tracks.length} pista(s) guardada(s)`);
   }
 
@@ -115,4 +116,34 @@ function reconcile(track) {
   }
   if (changed) console.log(`[pistas] recordes de "${track.name}" conferidos com o histórico`);
   return changed;
+}
+
+const pathLength = (p) => {
+  let sum = 0;
+  for (let i = 1; i < (p?.length ?? 0); i++) sum += Math.hypot(p[i].x - p[i - 1].x, p[i].z - p[i - 1].z);
+  return sum;
+};
+
+// Desenho da pista incompleto (mais de 5% mais curto que a volta do recorde mais rápido): troca-o
+// pelo traçado desse recorde. O desenho serve para o mapa, as curvas e as linhas da volta ideal.
+function repairPath(track) {
+  const best = Object.values(track.records ?? {})
+    .filter((r) => r.best?.path?.length)
+    .sort((a, b) => a.best.ms - b.best.ms)[0]?.best.path;
+  if (!best || (track.path && pathLength(track.path) >= pathLength(best) * 0.95)) return false;
+  track.path = best;
+  track.corners = null; // recalculadas com o desenho completo
+  console.log(`[pistas] "${track.name}": desenho da pista estava incompleto e foi corrigido`);
+  return true;
+}
+
+// Curvas do detetor antigo (por velocidade) passam a ser detetadas pelo desenho da pista.
+function refreshCorners(track) {
+  if (cornersAreCurrent(track.corners)) return false;
+  const path = track.path ?? Object.values(track.records ?? {}).find((r) => r.best?.path)?.best.path;
+  const corners = detectCornersFromPath(path);
+  if (!corners.length) return false;
+  track.corners = corners;
+  console.log(`[pistas] "${track.name}": ${corners.length} curvas (pelo desenho da pista)`);
+  return true;
 }

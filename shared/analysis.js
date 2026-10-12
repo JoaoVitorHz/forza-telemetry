@@ -3,8 +3,6 @@
 // G lateral ×100, G longitudinal ×100, deriva frente (graus), deriva trás (graus)] — voltas antigas têm menos colunas. Voltas diferentes têm
 // comprimentos ligeiramente diferentes, por isso as posições comparam-se em fração da volta.
 
-const CORNER_DROP_KMH = 12; // quebra mínima de velocidade (desde o pico anterior) para ser curva
-const CORNER_RISE_KMH = 8; // recuperação depois do mínimo que confirma a curva
 const BRAKE_ON = 20; // % de travão a partir do qual conta como travagem
 const FULL_THROTTLE = 95; // % de acelerador que conta como "a fundo"
 const APEX_WINDOW_M = 80; // procura da velocidade mínima à volta do vértice
@@ -78,36 +76,115 @@ function timeAt(samples, d) {
   return d1 === d0 ? t0 : t0 + ((d - d0) / (d1 - d0)) * (t1 - t0);
 }
 
-// Curvas = mínimos de velocidade com quebra e recuperação suficientes (histerese).
-// Devolve a posição de cada vértice em fração da volta.
-export function detectCorners(raw) {
-  const samples = withTraces(raw);
-  if (!hasTraces(samples)) return [];
-  const total = lengthOf(samples);
-  const corners = [];
-  let peak = samples[0][2];
-  let min = Infinity;
-  let minDist = 0;
-  let seekingMin = false;
-  for (const [dist, , kmh] of samples) {
-    if (!seekingMin) {
-      if (kmh > peak) peak = kmh;
-      else if (peak - kmh >= CORNER_DROP_KMH) {
-        seekingMin = true;
-        min = kmh;
-        minDist = dist;
-      }
-    } else if (kmh < min) {
-      min = kmh;
-      minDist = dist;
-    } else if (kmh - min >= CORNER_RISE_KMH) {
-      corners.push({ frac: minDist / total });
-      seekingMin = false;
-      peak = kmh;
+// Curvas pelo desenho da pista (não pela velocidade, para apanhar também as curvas feitas a fundo
+// e separar curvas seguidas): o traçado é reamostrado a cada 5 m, mede-se quanto a direção muda
+// por metro (curvatura) e uma curva é um trecho com raio < CORNER_MAX_RADIUS_M que vire pelo menos
+// CORNER_MIN_TURN_DEG. Mudança de sentido (esquerda/direita) separa curvas de um "S".
+// Devolve [{ frac, x, z, dir, turnDeg, radiusM, geo: true }]; frac = posição do vértice (ponto mais
+// fechado) em fração da volta.
+const CORNER_STEP_M = 5;
+const CORNER_MAX_RADIUS_M = 250;
+const CORNER_MIN_TURN_DEG = 15;
+const CORNER_MERGE_M = 20; // pedaços da mesma curva (mesmo sentido) separados por menos disto juntam-se
+const DOUBLE_APEX_DROP = 0.5;
+
+export function detectCornersFromPath(path) {
+  if (!path || path.length < 10) return [];
+  const cum = [0];
+  for (let i = 1; i < path.length; i++) cum.push(cum[i - 1] + Math.hypot(path[i].x - path[i - 1].x, path[i].z - path[i - 1].z));
+  const total = cum[cum.length - 1];
+  const pts = [];
+  for (let d = 0, j = 1; d <= total; d += CORNER_STEP_M) {
+    while (j < cum.length - 1 && cum[j] < d) j++;
+    const f = (d - cum[j - 1]) / (cum[j] - cum[j - 1] || 1);
+    pts.push({ x: path[j - 1].x + (path[j].x - path[j - 1].x) * f, z: path[j - 1].z + (path[j].z - path[j - 1].z) * f });
+  }
+  const n = pts.length;
+  // Direção em cada ponto (pelos vizinhos a ±10 m) e curvatura suavizada (±10 m).
+  const heading = pts.map((_, i) => {
+    const a = pts[Math.max(0, i - 2)];
+    const b = pts[Math.min(n - 1, i + 2)];
+    return Math.atan2(b.z - a.z, b.x - a.x);
+  });
+  const raw = [];
+  for (let i = 0; i < n - 1; i++) {
+    let d = heading[i + 1] - heading[i];
+    while (d > Math.PI) d -= 2 * Math.PI;
+    while (d < -Math.PI) d += 2 * Math.PI;
+    raw.push(d / CORNER_STEP_M);
+  }
+  const curv = raw.map((_, i) => {
+    const win = raw.slice(Math.max(0, i - 2), i + 3);
+    return win.reduce((a, b) => a + b, 0) / win.length;
+  });
+
+  const regions = [];
+  let cur = null;
+  curv.forEach((v, i) => {
+    const sign = Math.abs(v) >= 1 / CORNER_MAX_RADIUS_M ? Math.sign(v) : 0;
+    if (sign && cur && cur.sign === sign) cur.end = i;
+    else {
+      if (cur) regions.push(cur);
+      cur = sign ? { sign, start: i, end: i } : null;
     }
+  });
+  if (cur) regions.push(cur);
+  const merged = [];
+  for (const r of regions) {
+    const last = merged[merged.length - 1];
+    if (last && last.sign === r.sign && (r.start - last.end) * CORNER_STEP_M <= CORNER_MERGE_M) last.end = r.end;
+    else merged.push({ ...r });
+  }
+
+  // Curva de duplo vértice: dois pontos mais fechados com a pista a "abrir" bastante entre eles
+  // (curvatura cai para menos de metade do pico mais fraco) viram duas curvas.
+  const split = [];
+  for (const r of merged) {
+    let from = r.start;
+    let peak = r.start;
+    let valley = null;
+    for (let i = r.start + 1; i <= r.end; i++) {
+      const v = Math.abs(curv[i]);
+      if (valley == null) {
+        if (v >= Math.abs(curv[peak])) peak = i;
+        else if (v < Math.abs(curv[peak]) * DOUBLE_APEX_DROP) valley = i;
+      } else if (v < Math.abs(curv[valley])) valley = i;
+      else if (v > Math.abs(curv[valley]) / DOUBLE_APEX_DROP && v * DOUBLE_APEX_DROP > Math.abs(curv[valley])) {
+        // Novo pico depois do vale: corta no vale.
+        split.push({ sign: r.sign, start: from, end: valley });
+        from = valley + 1;
+        peak = i;
+        valley = null;
+      }
+    }
+    split.push({ sign: r.sign, start: from, end: r.end });
+  }
+
+  const corners = [];
+  for (const r of split) {
+    let turn = 0;
+    let peak = r.start;
+    for (let i = r.start; i <= r.end; i++) {
+      turn += curv[i] * CORNER_STEP_M;
+      if (Math.abs(curv[i]) > Math.abs(curv[peak])) peak = i;
+    }
+    const turnDeg = Math.round((Math.abs(turn) * 180) / Math.PI);
+    if (turnDeg < CORNER_MIN_TURN_DEG) continue;
+    corners.push({
+      frac: Math.round(((peak * CORNER_STEP_M) / total) * 10000) / 10000,
+      x: Math.round(pts[peak].x * 10) / 10,
+      z: Math.round(pts[peak].z * 10) / 10,
+      dir: r.sign > 0 ? "esquerda" : "direita",
+      turnDeg,
+      radiusM: Math.round(1 / Math.abs(curv[peak])),
+      geo: true,
+    });
   }
   return corners;
 }
+
+// Curvas guardadas com o detetor antigo (por velocidade) não têm "geo" e são recalculadas.
+export const cornersAreCurrent = (corners) => !!corners?.length && corners.every((c) => c.geo);
 
 // Mede uma curva numa volta: ponto de travagem, velocidade mínima e ponto de acelerar a fundo,
 // em metros relativos ao vértice (negativo = antes do vértice).

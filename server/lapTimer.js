@@ -1,5 +1,5 @@
 import { miniSectorColors } from "../shared/miniSectors.js";
-import { analyzeLap, detectCorners, topLosses } from "../shared/analysis.js";
+import { analyzeLap, cornersAreCurrent, detectCornersFromPath, topLosses } from "../shared/analysis.js";
 import { buildIdeal } from "../shared/ideal.js";
 
 // Cronómetro próprio: no Horizon os campos de volta do jogo vêm a zero fora de corridas oficiais,
@@ -235,7 +235,7 @@ export class LapTimer {
     this.track = { id: track.id, name: track.name };
     this.start = track.start;
     this.sectors = track.sectors ?? null;
-    this.corners = track.corners ?? null;
+    this.corners = cornersAreCurrent(track.corners) ? track.corners : null; // antigas: recalcula
     this.trackPath = track.path ?? null;
     this.records = structuredClone(track.records ?? {});
     this.applyCar();
@@ -249,7 +249,7 @@ export class LapTimer {
     this.track = { id: track.id, name: track.name };
     this.start = track.start;
     this.sectors = track.sectors ?? this.sectors;
-    this.corners = track.corners ?? this.corners;
+    this.corners = cornersAreCurrent(track.corners) ? track.corners : this.corners;
     this.trackPath = track.path ?? this.trackPath;
     const saved = track.records?.[this.carKey];
     if (saved?.best && (!this.ref || saved.best.ms <= this.ref.ms)) this.ref = saved.best;
@@ -674,13 +674,13 @@ export class LapTimer {
     return true;
   }
 
-  // Deteta as curvas na referência (precisa de velocidade nas amostras). Ficam fixas na pista
-  // para a numeração não mudar.
+  // Deteta as curvas pelo desenho da pista. Ficam fixas na pista para a numeração não mudar.
   ensureCorners() {
-    if (this.corners || !this.ref?.samples || !this.ref.path?.length) return false;
-    const found = detectCorners(this.ref.samples);
+    const path = this.trackPath ?? this.ref?.path;
+    if (this.corners || !path?.length) return false;
+    const found = detectCornersFromPath(path);
     if (!found.length) return false;
-    this.corners = found.map((c) => ({ frac: Math.round(c.frac * 10000) / 10000, ...pointAtFraction(this.ref, c.frac) }));
+    this.corners = found;
     this.mapVersion++;
     console.log(`[pista] ${found.length} curvas detetadas`);
     return true;
