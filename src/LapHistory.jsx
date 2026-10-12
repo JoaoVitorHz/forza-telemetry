@@ -30,10 +30,17 @@ export default function LapHistory({ laps, selected, onSelect }) {
                 key={key}
                 onClick={() => onSelect(key)}
                 className={key === selected ? "selected" : ""}
-                title={lap.at ? new Date(lap.at).toLocaleString() : undefined}
+                title={
+                  lap.invalid
+                    ? "Volta inválida: distância muito diferente do normal (atalho ou desvio)"
+                    : lap.at && new Date(lap.at).toLocaleString()
+                }
               >
                 <td className="lap-n">{lap.n}</td>
-                <td className={lap.color}>{fmtTime(lap.ms)}</td>
+                <td className={lap.color}>
+                  {fmtTime(lap.ms)}
+                  {lap.invalid && " ⚠"}
+                </td>
                 {[0, 1, 2].map((i) => {
                   const s = lap.splits?.[i];
                   return (

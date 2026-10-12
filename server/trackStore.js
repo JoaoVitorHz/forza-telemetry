@@ -98,7 +98,7 @@ function reconcile(track) {
   }
   track.records ??= {};
   for (const lap of readLaps(track.id)) {
-    if (lap.ms == null) continue;
+    if (lap.ms == null || lap.invalid) continue;
     const key = String(lap.car?.ordinal ?? "?");
     const rec = (track.records[key] ??= { best: null, bestSectors: [null, null, null] });
     rec.bestSectors ??= [null, null, null];

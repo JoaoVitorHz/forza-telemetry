@@ -53,6 +53,7 @@ function lapRecord(lap) {
     color: lap.color,
     splits: lap.splits,
     spins: lap.spins, // vezes que destracionou
+    invalid: lap.invalid || undefined, // atalho/desvio: não conta para recordes
     splitIdx: lap.splitIdx,
     path: lap.path,
     samples: lap.samples, // para o delta, se esta volta voltar a ser recorde

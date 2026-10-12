@@ -860,3 +860,8 @@ body.overlay-body {
 .export-result .hint {
   margin-bottom: 8px;
 }
+
+.history td.invalid {
+  color: #777;
+  text-decoration: line-through;
+}

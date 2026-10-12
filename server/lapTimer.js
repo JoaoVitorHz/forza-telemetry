@@ -16,7 +16,8 @@ const SAMPLE_STEP_M = 2; // resolução das amostras guardadas para o delta
 const GATE_RADIUS = 30; // m — largura máxima da "linha" de cada setor
 const SPIN_MIN_THROTTLE = 77; // acelerador (0–255, ≈30%) a partir do qual a patinagem conta como destracionar
 const SPIN_MIN_KMH = 5;
-const IDEAL_GATES = 24; // linhas fixas que dividem a volta em troços para a volta ideal
+const IDEAL_GATES = 24;
+const LENGTH_TOLERANCE = 0.05; // volta 5% mais curta/longa que o normal = atalho ou desvio (inválida) // linhas fixas que dividem a volta em troços para a volta ideal
 const SCOUT_STEP_M = 2; // resolução do trajeto guardado à procura de um circuito
 const SCOUT_MAX_POINTS = 20_000; // ~40 km de trajeto
 const LOOP_MATCH_M = 10; // distância para considerar que voltou a passar no mesmo ponto
@@ -273,6 +274,11 @@ export class LapTimer {
     this.gatePrevSide = null;
     this.splitAtMs = 0;
     this.splitMarks = []; // { dist, atMs } de cada setor fechado nesta volta
+    // Melhores setores no início da volta, para repor se a volta for inválida (atalho).
+    this.sectorsAtLapStart = {
+      best: [...(this.bestSectors ?? emptySectors())],
+      session: [...(this.sessionSectors ?? emptySectors())],
+    };
     this.ensureIdealGates();
     this.gateTimes = []; // instante de passagem em cada linha da volta ideal
     this.gateDists = [];
@@ -524,38 +530,62 @@ export class LapTimer {
       this.beginLap(pos);
       return;
     }
-    // S3 = resto da volta (só se S1 e S2 foram registados nesta volta).
-    if (this.splits[0] && this.splits[1]) this.recordSplit(2, lap - this.splitAtMs);
-    let changed = this.splits.some((s) => s?.color === "purple"); // novo melhor setor de sempre
-    this.lastSplits = this.splits;
-
-    // Histórico com as cores do momento (como nos ecrãs de tempos da F1).
-    const lapColor =
-      !this.ref || lap < this.ref.ms ? "purple" : this.sessionBestMs == null || lap < this.sessionBestMs ? "green" : "yellow";
-    this.laps.push({ n: this.lapNumber, ms: lap, color: lapColor, splits: this.splits, car: this.carKey, spins: this.spinEvents });
     this.path.push({ x: pos.x, z: pos.z });
     const lapPath = this.path.map((p) => ({ x: round1(p.x), z: round1(p.z) }));
     const lapSamples = downsample(this.samples);
+
+    // Volta com distância muito diferente do normal = atalho ou desvio: fica no histórico como
+    // inválida, mas não conta para recordes, setores, volta ideal nem análise.
+    const lapLen = lapSamples[lapSamples.length - 1][0];
+    const typical = this.typicalLength(lapLen);
+    const invalid = typical != null && Math.abs(lapLen - typical) / typical > LENGTH_TOLERANCE;
+
+    // S3 = resto da volta (só se S1 e S2 foram registados nesta volta).
+    if (this.splits[0] && this.splits[1]) this.recordSplit(2, lap - this.splitAtMs);
+    if (invalid) {
+      this.bestSectors = this.sectorsAtLapStart.best;
+      this.sessionSectors = this.sectorsAtLapStart.session;
+      console.log(`[volta] inválida: ${Math.round(lapLen)} m (normal ≈ ${Math.round(typical)} m)`);
+    }
+    let changed = !invalid && this.splits.some((s) => s?.color === "purple"); // novo melhor setor de sempre
+    this.lastSplits = this.splits;
+
+    // Histórico com as cores do momento (como nos ecrãs de tempos da F1).
+    let lapColor = "yellow";
+    if (invalid) lapColor = "invalid";
+    else if (!this.ref || lap < this.ref.ms) lapColor = "purple";
+    else if (this.sessionBestMs == null || lap < this.sessionBestMs) lapColor = "green";
+    this.laps.push({
+      n: this.lapNumber,
+      ms: lap,
+      color: lapColor,
+      splits: this.splits,
+      car: this.carKey,
+      spins: this.spinEvents,
+      invalid,
+      lengthM: Math.round(lapLen),
+    });
     const complete = this.idealGates && this.gateTimes.length === this.idealGates.length;
     this.lapPaths.set(this.lapNumber, {
       path: lapPath,
       splitIdx: this.splitIdx,
       samples: lapSamples,
-      gateTimes: complete ? [...this.gateTimes] : null, // só voltas que passaram em todas as linhas
+      gateTimes: complete && !invalid ? [...this.gateTimes] : null, // só voltas válidas que passaram em todas as linhas
     });
     if (this.laps.length > MAX_LAP_HISTORY) this.lapPaths.delete(this.laps.shift().n);
 
     // Onde se perdeu tempo, em relação à referência antes desta volta.
-    const analysis = this.corners && this.ref ? analyzeLap(lapSamples, this.ref.samples, this.corners, this.spinThreshold * 100) : null;
+    const analysis = !invalid && this.corners && this.ref ? analyzeLap(lapSamples, this.ref.samples, this.corners, this.spinThreshold * 100) : null;
     this.lastAnalysis = analysis ? { n: this.lapNumber, items: topLosses(analysis) } : null;
 
     this.lastLapMs = lap;
-    if (this.sessionBestMs == null || lap < this.sessionBestMs) this.sessionBestMs = lap;
-    if (!this.ref || lap < this.ref.ms) {
+    if (!invalid && (this.sessionBestMs == null || lap < this.sessionBestMs)) this.sessionBestMs = lap;
+    if (!invalid && (!this.ref || lap < this.ref.ms)) {
       this.ref = { ms: lap, samples: lapSamples, path: lapPath };
       this.mapVersion++;
       changed = true;
     }
+    if (this.fixOutlierReference(typical)) changed = true;
     if (this.ensureSectors()) changed = true;
     if (this.ensureCorners()) changed = true;
     if (changed) {
@@ -565,6 +595,63 @@ export class LapTimer {
     this.rebuildIdeal();
     this.onLapComplete?.(this.getLap(this.lapNumber));
     this.beginLap(pos);
+  }
+
+  // Comprimento normal de uma volta deste carro: mediana das voltas válidas da sessão (incluindo a
+  // atual). Com menos de 2 voltas na sessão entra também o recorde de antes (pista guardada). Só com 3 ou
+  // mais valores, para haver termo de comparação.
+  typicalLength(currentLen) {
+    const lengths = [currentLen];
+    for (const lap of (this.laps ?? []).slice(-10)) {
+      if (lap.car === this.carKey && !lap.invalid && lap.lengthM) lengths.push(lap.lengthM);
+    }
+    // O recorde só entra se veio de antes desta sessão (senão a mesma volta contava duas vezes).
+    const refFromSession = this.ref && (this.laps ?? []).some((l) => l.car === this.carKey && l.ms === this.ref.ms);
+    if (lengths.length < 3 && this.ref?.samples?.length && !refFromSession) {
+      lengths.push(this.ref.samples[this.ref.samples.length - 1][0]);
+    }
+    if (lengths.length < 3) return null;
+    lengths.sort((a, b) => a - b);
+    return lengths[Math.floor(lengths.length / 2)];
+  }
+
+  // Se a referência for uma volta fora do normal (ex.: a 1.ª volta da partida automática apanhou um
+  // atalho), troca-a pela melhor volta válida. Numa pista não guardada, o desenho da pista, os
+  // setores, as curvas e as linhas da volta ideal vinham dessa volta e são recalculados.
+  fixOutlierReference(typical) {
+    const refLen = this.ref?.samples?.[this.ref.samples.length - 1]?.[0];
+    if (!typical || !refLen || Math.abs(refLen - typical) / typical <= LENGTH_TOLERANCE) return false;
+    let best = null;
+    for (const lap of this.laps) {
+      if (lap.car !== this.carKey || lap.invalid || (best && lap.ms >= best.ms)) continue;
+      if (Math.abs(lap.lengthM - typical) / typical > LENGTH_TOLERANCE) continue;
+      const detail = this.lapPaths.get(lap.n);
+      if (detail) best = { ms: lap.ms, samples: detail.samples, path: detail.path };
+    }
+    if (!best) return false;
+    // As voltas da sessão fora do normal (a que era referência incluída) passam a inválidas.
+    for (const lap of this.laps) {
+      if (lap.car === this.carKey && Math.abs(lap.lengthM - typical) / typical > LENGTH_TOLERANCE) {
+        lap.invalid = true;
+        lap.color = "invalid";
+      }
+    }
+    const valid = this.laps.filter((l) => l.car === this.carKey && !l.invalid).map((l) => l.ms);
+    this.sessionBestMs = valid.length ? Math.min(...valid) : null;
+    console.log(`[volta] referência fora do normal (${Math.round(refLen)} m) trocada pela volta de ${best.ms} ms`);
+    this.ref = best;
+    if (!this.track) {
+      this.trackPath = best.path;
+      this.sectors = null;
+      this.corners = null;
+      this.idealGates = null;
+      this.bestSectors = emptySectors();
+      this.sessionSectors = emptySectors();
+      this.ensureSectors();
+      this.ensureCorners();
+    }
+    this.mapVersion++;
+    return true;
   }
 
   // Cria as divisões S1/S2 (a 1/3 e 2/3 do traçado de referência) se ainda não existirem.
