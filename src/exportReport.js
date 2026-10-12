@@ -59,7 +59,7 @@ function pedalShares(samples) {
   return [full, braking, coasting].map((t) => Math.round((t / total) * 100));
 }
 
-// "2: C3 1250 m (4.2 G, -38 km/h), 2810 m (3.1 G, -12 km/h)" — curva mais próxima (até 80 m).
+// "2: C3 1250 m (-38 km/h), 2810 m (-52 km/h, freando)" — curva mais próxima (até 80 m).
 function impactsText(impacts, corners, len) {
   if (impacts == null) return "-";
   if (!impacts.length) return "0";
@@ -71,7 +71,7 @@ function impactsText(impacts, corners, len) {
     });
     return best ? `${best.name} ${dist} m` : `${dist} m`;
   };
-  return `${impacts.length}: ${impacts.map((i) => `${where(i.dist)} (${i.g} G, -${i.kmhLost} km/h)`).join(", ")}`;
+  return `${impacts.length}: ${impacts.map((i) => `${where(i.dist)} (-${i.kmhLost} km/h${i.braking ? ", freando" : ""})`).join(", ")}`;
 }
 
 export function buildReport(data, { carName, spinThreshold, stepM, includeTelemetry }) {
@@ -91,6 +91,8 @@ export function buildReport(data, { carName, spinThreshold, stepM, includeTeleme
   line("## Legenda");
   line("- Tempos em segundos. \"dif\", \"perda\" e \"delta\" = volta − referência (positivo = mais lento).");
   line("- Referência = recorde deste carro nesta pista. Pares \"a/b\" = volta/referência.");
+  line("- Voltas \"(inválida)\": distância muito diferente do normal (atalho, desvio ou erro de contagem);");
+  line("  aparecem na tabela mas ficam fora da análise das curvas e da telemetria.");
   line("- a_fundo / freando / sem_pedal: % do tempo da volta com acelerador ≥ 95%, freio ≥ 10%, ou nenhum dos dois.");
   line("- Curvas: v_entrada = velocidade quando começa a frear (ou a máxima antes da curva, se não frear);");
   line("  vmin = mínima na curva; v_saida = 100 m depois do vértice (km/h).");
@@ -101,7 +103,7 @@ export function buildReport(data, { carName, spinThreshold, stepM, includeTeleme
   line("  deriva_f / deriva_t: ângulo de deriva médio das rodas da frente / de trás (graus).");
   line(`- Destracionar = rodas de tração patinando acima de ${spinThreshold} (×100) com acelerador > 30%.`);
   line("- patina: patinagem das rodas de tração ×100 (≈10 acelerando normal, 40+ destracionando).");
-  line("- batidas: tranco acima de 3 G ou perda de 25+ km/h em 0,25 s sem frear. Formato curva/metro (G, km/h perdidos).");
+  line("- batidas: perda de 20+ km/h em 0,25 s sem frear (ou 45+ freando). Formato: curva mais próxima, metro, km/h perdidos.");
   line("  Batidas apagadas pelo retroceder do jogo não aparecem.");
   line("- g_lat: + = carro empurrado para um lado, − = para o outro. g_long: + acelerando, − freando.");
   line();
@@ -143,7 +145,8 @@ export function buildReport(data, { carName, spinThreshold, stepM, includeTeleme
         impactsText(lap.impacts, corners, len),
       ].join(";"),
     );
-    return { lap, samples, len, analysis: refSamples ? analyzeLap(samples, refSamples, corners, spinThreshold) : null };
+    const usable = refSamples && !lap.invalid;
+    return { lap, samples, len, analysis: usable ? analyzeLap(samples, refSamples, corners, spinThreshold) : null };
   });
   line("```");
   line();
@@ -244,7 +247,9 @@ export function buildReport(data, { carName, spinThreshold, stepM, includeTeleme
     line(`## Telemetria (a cada ${stepM} m)`);
     line();
     block(`Referência (recorde ${fmtTime(ref?.ms)})`, refSamples, false);
-    for (const { lap, samples } of analyses) block(`${lap.label} — ${fmtTime(lap.ms)}`, samples, !!refSamples);
+    for (const { lap, samples } of analyses) {
+      if (!lap.invalid) block(`${lap.label} — ${fmtTime(lap.ms)}`, samples, !!refSamples);
+    }
   }
 
   return out.join("\n");

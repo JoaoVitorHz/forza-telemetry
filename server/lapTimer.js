@@ -16,12 +16,12 @@ const SAMPLE_STEP_M = 2; // resolução das amostras guardadas para o delta
 const GATE_RADIUS = 30; // m — largura máxima da "linha" de cada setor
 const SPIN_MIN_THROTTLE = 77; // acelerador (0–255, ≈30%) a partir do qual a patinagem conta como destracionar
 const SPIN_MIN_KMH = 5;
-// Batida: tranco bem maior do que numa curva/travagem (que ficam até ~1,6 G), ou perda brusca de
-// velocidade sem travar. Só vai para o relatório.
-const IMPACT_G = 3;
-const IMPACT_DROP_KMH = 25; // perdidos em IMPACT_WINDOW_MS…
+// Batida: perda brusca de velocidade que a travagem não explica. Só vai para o relatório.
+// (A força G não serve: tem picos falsos em lombadas e zebras, e carros rápidos curvam acima de 3 G.)
 const IMPACT_WINDOW_MS = 250;
-const IMPACT_BRAKE = 128; // …sem travão acima de ~50%
+const IMPACT_DROP_KMH = 20; // perdidos em IMPACT_WINDOW_MS sem travão acima de ~50%…
+const IMPACT_DROP_BRAKING_KMH = 45; // …ou a travar (mais do que qualquer travão consegue)
+const IMPACT_BRAKE = 128;
 const IMPACT_COOLDOWN_MS = 1000; // a mesma batida não conta duas vezes
 const IDEAL_GATES = 24;
 const LENGTH_TOLERANCE = 0.05; // volta 5% mais curta/longa que o normal = atalho ou desvio (inválida) // linhas fixas que dividem a volta em troços para a volta ideal
@@ -30,6 +30,7 @@ const SCOUT_MAX_POINTS = 20_000; // ~40 km de trajeto
 const LOOP_MATCH_M = 10; // distância para considerar que voltou a passar no mesmo ponto
 const ABANDON_FACTOR = 3; // volta automática com mais do triplo da primeira = saiu do circuito
 const RACE_END_MS = 3000; // tempo de volta do jogo a 0 durante isto = a corrida acabou
+const LAP_DROP_MS = 1500; // número da volta mais baixo durante isto = corrida recomeçada
 const REWIND_MATCH_M = 8; // depois de retroceder o carro reaparece num ponto já percorrido (a menos disto)
 const REWIND_MIN_BACK_M = 5; // recuos menores contam como pausa (o carro ficou no mesmo sítio)
 
@@ -337,7 +338,9 @@ export class LapTimer {
     }
     const dt = t.timestampMs - prev.timestampMs;
     const step = Math.hypot(t.x - prev.x, t.z - prev.z);
-    const validStep = dt > 0 && dt <= MAX_DT_MS && step <= MAX_STEP_M;
+    // dt = 0 acontece (o jogo às vezes repete o timestamp): o carro andou na mesma, por isso a
+    // distância conta; só intervalos negativos (pacote fora de ordem) ou longos são descartados.
+    const validStep = dt >= 0 && dt <= MAX_DT_MS && step <= MAX_STEP_M;
 
     if (this.gameRace) {
       this.updateRace(t, prev, validStep ? step : 0);
@@ -401,7 +404,7 @@ export class LapTimer {
     }
   }
 
-  // Batidas: pico de força G (lateral + longitudinal) ou perda de velocidade brusca sem travar.
+  // Batidas: perda de velocidade brusca, maior do que a travagem explica.
   detectImpact(t, prev) {
     if (!prev?.isRaceOn) {
       this.speedWindow = []; // depois de pausa/retroceder a velocidade anterior já não serve
@@ -411,13 +414,12 @@ export class LapTimer {
     this.speedWindow = (this.speedWindow ?? []).filter((w) => t.timestampMs - w.ts <= IMPACT_WINDOW_MS);
     this.speedWindow.push({ ts: t.timestampMs, kmh, brake: t.brake });
     if (!this.running) return;
-    const g = Math.hypot(t.accelX ?? 0, t.accelZ ?? 0) / 9.81;
     const drop = Math.max(...this.speedWindow.map((w) => w.kmh)) - kmh;
     const braking = this.speedWindow.some((w) => w.brake >= IMPACT_BRAKE);
-    const hit = g >= IMPACT_G || (drop >= IMPACT_DROP_KMH && !braking);
+    const hit = drop >= (braking ? IMPACT_DROP_BRAKING_KMH : IMPACT_DROP_KMH);
     if (!hit || t.timestampMs - (this.lastImpactAt ?? -Infinity) < IMPACT_COOLDOWN_MS) return;
     this.lastImpactAt = t.timestampMs;
-    this.impacts.push({ dist: Math.round(this.lapDist), g: Math.round(g * 10) / 10, kmhLost: Math.round(Math.max(drop, 0)) });
+    this.impacts.push({ dist: Math.round(this.lapDist), kmhLost: Math.round(drop), braking });
   }
 
   enterRace(t) {
@@ -450,7 +452,15 @@ export class LapTimer {
       this.completeLap(Math.round(t.lastLap * 1000), t);
       return;
     }
-    this.gameLap = t.lapNumber;
+    // Logo depois da meta o número da volta oscila por instantes; tratar essa oscilação como
+    // descida e depois subida criava voltas "fantasma". Só uma descida que dura (corrida
+    // recomeçada) é aceite.
+    if (t.lapNumber < this.gameLap) {
+      this.lapDropSince ??= t.timestampMs;
+      if (t.timestampMs - this.lapDropSince > LAP_DROP_MS) this.gameLap = t.lapNumber;
+    } else {
+      this.lapDropSince = null;
+    }
     const prevMs = this.currentMs;
     this.currentMs = Math.round(t.currentLap * 1000);
     if (step > 0) this.advance(t, step, prevMs);
