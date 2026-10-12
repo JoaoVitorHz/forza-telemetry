@@ -16,6 +16,13 @@ const SAMPLE_STEP_M = 2; // resolução das amostras guardadas para o delta
 const GATE_RADIUS = 30; // m — largura máxima da "linha" de cada setor
 const SPIN_MIN_THROTTLE = 77; // acelerador (0–255, ≈30%) a partir do qual a patinagem conta como destracionar
 const SPIN_MIN_KMH = 5;
+// Batida: tranco bem maior do que numa curva/travagem (que ficam até ~1,6 G), ou perda brusca de
+// velocidade sem travar. Só vai para o relatório.
+const IMPACT_G = 3;
+const IMPACT_DROP_KMH = 25; // perdidos em IMPACT_WINDOW_MS…
+const IMPACT_WINDOW_MS = 250;
+const IMPACT_BRAKE = 128; // …sem travão acima de ~50%
+const IMPACT_COOLDOWN_MS = 1000; // a mesma batida não conta duas vezes
 const IDEAL_GATES = 24;
 const LENGTH_TOLERANCE = 0.05; // volta 5% mais curta/longa que o normal = atalho ou desvio (inválida) // linhas fixas que dividem a volta em troços para a volta ideal
 const SCOUT_STEP_M = 2; // resolução do trajeto guardado à procura de um circuito
@@ -273,6 +280,7 @@ export class LapTimer {
     const p = this.prev;
     this.samples = [[0, 0, ...traces(p)]];
     this.spinEvents = 0; // vezes que destracionou nesta volta
+    this.impacts = []; // batidas nesta volta: { dist, g, kmhLost }
     this.partial = false; // volta apanhada a meio (sem origem de distância fiável)
     this.samplePos = [{ x: pos.x, z: pos.z }]; // posição de cada amostra (para desfazer um retroceder)
     this.path = [{ x: pos.x, z: pos.z }];
@@ -307,6 +315,7 @@ export class LapTimer {
     const loss = t.throttle >= SPIN_MIN_THROTTLE && t.speed * 3.6 > SPIN_MIN_KMH && t.drivenSlip > this.spinThreshold;
     if (loss && !this.tractionLoss && this.running) this.spinEvents++;
     this.tractionLoss = loss;
+    this.detectImpact(t, prev);
 
     // Corrida oficial: o jogo envia o tempo da volta; fora dela vem a zero. (O "tempo de corrida"
     // não serve: no FH6 conta sempre, mesmo em roaming livre.) Ao passar a meta o tempo de volta
@@ -390,6 +399,25 @@ export class LapTimer {
       this.completeLap(lapMs);
       this.currentMs = carry;
     }
+  }
+
+  // Batidas: pico de força G (lateral + longitudinal) ou perda de velocidade brusca sem travar.
+  detectImpact(t, prev) {
+    if (!prev?.isRaceOn) {
+      this.speedWindow = []; // depois de pausa/retroceder a velocidade anterior já não serve
+      return;
+    }
+    const kmh = t.speed * 3.6;
+    this.speedWindow = (this.speedWindow ?? []).filter((w) => t.timestampMs - w.ts <= IMPACT_WINDOW_MS);
+    this.speedWindow.push({ ts: t.timestampMs, kmh, brake: t.brake });
+    if (!this.running) return;
+    const g = Math.hypot(t.accelX ?? 0, t.accelZ ?? 0) / 9.81;
+    const drop = Math.max(...this.speedWindow.map((w) => w.kmh)) - kmh;
+    const braking = this.speedWindow.some((w) => w.brake >= IMPACT_BRAKE);
+    const hit = g >= IMPACT_G || (drop >= IMPACT_DROP_KMH && !braking);
+    if (!hit || t.timestampMs - (this.lastImpactAt ?? -Infinity) < IMPACT_COOLDOWN_MS) return;
+    this.lastImpactAt = t.timestampMs;
+    this.impacts.push({ dist: Math.round(this.lapDist), g: Math.round(g * 10) / 10, kmhLost: Math.round(Math.max(drop, 0)) });
   }
 
   enterRace(t) {
@@ -493,6 +521,7 @@ export class LapTimer {
     }
     this.splitAtMs = this.splitMarks[this.splitMarks.length - 1]?.atMs ?? 0;
     this.gatePrevSide = null;
+    this.impacts = this.impacts.filter((i) => i.dist <= dist); // retrocedeu para antes da batida
     while (this.gateDists.length && this.gateDists[this.gateDists.length - 1] > dist) {
       this.gateDists.pop();
       this.gateTimes.pop();
@@ -573,6 +602,7 @@ export class LapTimer {
       splits: this.splits,
       car: this.carKey,
       spins: this.spinEvents,
+      impacts: this.impacts,
       invalid,
       lengthM: Math.round(lapLen),
     });

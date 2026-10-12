@@ -53,6 +53,7 @@ function lapRecord(lap) {
     color: lap.color,
     splits: lap.splits,
     spins: lap.spins, // vezes que destracionou
+    impacts: lap.impacts?.length ? lap.impacts : undefined, // batidas (só para o relatório)
     invalid: lap.invalid || undefined, // atalho/desvio: não conta para recordes
     splitIdx: lap.splitIdx,
     path: lap.path,
@@ -74,7 +75,7 @@ function exportData({ source, trackId, carKey, count }) {
     const laps = take(timer.laps.filter((l) => l.car === car))
       .map((l) => timer.getLap(l.n))
       .filter(Boolean)
-      .map((l) => ({ label: `Volta ${l.n}`, ms: l.ms, splits: l.splits, spins: l.spins, samples: l.samples, color: l.color, invalid: l.invalid }));
+      .map((l) => ({ label: `Volta ${l.n}`, ms: l.ms, splits: l.splits, spins: l.spins, samples: l.samples, color: l.color, invalid: l.invalid, impacts: l.impacts }));
     const record = timer.records[car] ?? (car === timer.carKey ? { best: timer.ref, bestSectors: timer.bestSectors } : null);
     return {
       trackName: timer.track?.name ?? "Pista não guardada",
@@ -101,6 +102,7 @@ function exportData({ source, trackId, carKey, count }) {
     samples: l.samples,
     color: l.color,
     invalid: l.invalid,
+    impacts: l.impacts,
   }));
   const record = track.records?.[carKey];
   return {

@@ -59,6 +59,21 @@ function pedalShares(samples) {
   return [full, braking, coasting].map((t) => Math.round((t / total) * 100));
 }
 
+// "2: C3 1250 m (4.2 G, -38 km/h), 2810 m (3.1 G, -12 km/h)" — curva mais próxima (até 80 m).
+function impactsText(impacts, corners, len) {
+  if (impacts == null) return "-";
+  if (!impacts.length) return "0";
+  const where = (dist) => {
+    let best = null;
+    corners?.forEach((c, i) => {
+      const gap = Math.abs(c.frac * len - dist);
+      if (gap <= 80 && (!best || gap < best.gap)) best = { name: `C${i + 1}`, gap };
+    });
+    return best ? `${best.name} ${dist} m` : `${dist} m`;
+  };
+  return `${impacts.length}: ${impacts.map((i) => `${where(i.dist)} (${i.g} G, -${i.kmhLost} km/h)`).join(", ")}`;
+}
+
 export function buildReport(data, { carName, spinThreshold, stepM, includeTelemetry }) {
   const { trackName, ref, laps, corners, bestSectors, possibleBestMs, idealMs } = data;
   const refSamples = withTraces(ref?.samples);
@@ -86,6 +101,8 @@ export function buildReport(data, { carName, spinThreshold, stepM, includeTeleme
   line("  deriva_f / deriva_t: ângulo de deriva médio das rodas da frente / de trás (graus).");
   line(`- Destracionar = rodas de tração patinando acima de ${spinThreshold} (×100) com acelerador > 30%.`);
   line("- patina: patinagem das rodas de tração ×100 (≈10 acelerando normal, 40+ destracionando).");
+  line("- batidas: tranco acima de 3 G ou perda de 25+ km/h em 0,25 s sem frear. Formato curva/metro (G, km/h perdidos).");
+  line("  Batidas apagadas pelo retroceder do jogo não aparecem.");
   line("- g_lat: + = carro empurrado para um lado, − = para o outro. g_long: + acelerando, − freando.");
   line();
 
@@ -108,7 +125,7 @@ export function buildReport(data, { carName, spinThreshold, stepM, includeTeleme
   // Voltas
   line("## Voltas");
   line("```");
-  line("volta;data;tempo;dif_ref;S1;S2;S3;a_fundo_%;freando_%;sem_pedal_%;destracionou;trechos_destracionando");
+  line("volta;data;tempo;dif_ref;S1;S2;S3;a_fundo_%;freando_%;sem_pedal_%;destracionou;trechos_destracionando;batidas");
   const analyses = laps.map((lap) => {
     const samples = withTraces(lap.samples);
     const len = samples?.length ? samples[samples.length - 1][0] : 0;
@@ -123,6 +140,7 @@ export function buildReport(data, { carName, spinThreshold, stepM, includeTeleme
         ...(samples ? pedalShares(samples) : ["-", "-", "-"]),
         lap.spins ?? "-",
         rangesInMeters(spins, len),
+        impactsText(lap.impacts, corners, len),
       ].join(";"),
     );
     return { lap, samples, len, analysis: refSamples ? analyzeLap(samples, refSamples, corners, spinThreshold) : null };
