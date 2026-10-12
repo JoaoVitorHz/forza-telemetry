@@ -75,6 +75,7 @@ export default function ExportPanel({ source, trackId, carKey, carName, settings
           <input type="checkbox" checked={includeTelemetry} onChange={(e) => setIncludeTelemetry(e.target.checked)} /> Telemetria
           detalhada a cada{" "}
           <select value={stepM} disabled={!includeTelemetry} onChange={(e) => setStepM(Number(e.target.value))}>
+            <option value={5}>5 m</option>
             <option value={10}>10 m</option>
             <option value={25}>25 m</option>
             <option value={50}>50 m</option>

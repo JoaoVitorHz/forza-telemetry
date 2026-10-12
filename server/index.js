@@ -74,7 +74,7 @@ function exportData({ source, trackId, carKey, count }) {
     const laps = take(timer.laps.filter((l) => l.car === car))
       .map((l) => timer.getLap(l.n))
       .filter(Boolean)
-      .map((l) => ({ label: `Volta ${l.n}`, ms: l.ms, splits: l.splits, spins: l.spins, samples: l.samples, color: l.color }));
+      .map((l) => ({ label: `Volta ${l.n}`, ms: l.ms, splits: l.splits, spins: l.spins, samples: l.samples, color: l.color, invalid: l.invalid }));
     const record = timer.records[car] ?? (car === timer.carKey ? { best: timer.ref, bestSectors: timer.bestSectors } : null);
     return {
       trackName: timer.track?.name ?? "Pista não guardada",
@@ -100,6 +100,7 @@ function exportData({ source, trackId, carKey, count }) {
     spins: l.spins,
     samples: l.samples,
     color: l.color,
+    invalid: l.invalid,
   }));
   const record = track.records?.[carKey];
   return {

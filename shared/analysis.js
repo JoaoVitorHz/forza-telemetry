@@ -1,5 +1,6 @@
 // Análise de voltas: deteção de curvas e "onde perdeste tempo".
-// Amostras: [distância m, tempo ms, km/h, acelerador %, travão %, patinagem ×100 (voltas novas)]. Voltas diferentes têm
+// Amostras: [distância m, tempo ms, km/h, acelerador %, travão %, patinagem ×100, volante %, mudança, rpm,
+// G lateral ×100, G longitudinal ×100, deriva frente (graus), deriva trás (graus)] — voltas antigas têm menos colunas. Voltas diferentes têm
 // comprimentos ligeiramente diferentes, por isso as posições comparam-se em fração da volta.
 
 const CORNER_DROP_KMH = 12; // quebra mínima de velocidade (desde o pico anterior) para ser curva
@@ -9,6 +10,18 @@ const FULL_THROTTLE = 95; // % de acelerador que conta como "a fundo"
 const APEX_WINDOW_M = 80; // procura da velocidade mínima à volta do vértice
 const MIN_LOSS_MS = 50;
 const SPIN_THROTTLE = 30; // % de acelerador a partir do qual a patinagem conta como destracionar
+const TURN_IN_STEER = 15; // % de volante que marca o início da curva (ponto de virar)
+const EXIT_M = 100; // velocidade de saída medida a esta distância depois do vértice
+const BALANCE_DEG = 1.5; // diferença de deriva frente/trás que conta como sair de frente/traseira
+const BALANCE_MIN_KMH = 30;
+
+// Saiu de frente (subesterço) ou de traseira (sobre-esterço) pela diferença de deriva frente − trás.
+export function balanceOf(diffDeg) {
+  if (diffDeg == null) return null;
+  if (diffDeg > BALANCE_DEG) return "frente";
+  if (diffDeg < -BALANCE_DEG) return "traseira";
+  return "neutro";
+}
 
 // Metros a destracionar entre duas distâncias (null se a volta não tem a coluna de patinagem).
 export function spinMeters(samples, from, to, threshold) {
@@ -128,6 +141,42 @@ function measureCorner(samples, apex, zoneStart, zoneEnd, spinThreshold) {
     brakeDist: brake,
     throttleDist: throttle,
     spinM: spinMeters(samples, minDist, zoneEnd, spinThreshold), // a destracionar na saída
+    ...measureDetails(samples, minDist, minIdx, brake, zoneStart, zoneEnd),
+  };
+}
+
+const nearest = (samples, d) => samples.reduce((a, b) => (Math.abs(b[0] - d) < Math.abs(a[0] - d) ? b : a));
+
+// Dados extra das voltas novas: velocidades de entrada e saída, ponto de virar o volante, mudança e
+// rpm no vértice, G lateral e de travagem máximos e se o carro saiu de frente ou de traseira.
+function measureDetails(samples, apex, apexIdx, brake, zoneStart, zoneEnd) {
+  const zone = samples.filter((s) => s[0] >= zoneStart && s[0] <= zoneEnd);
+  if (!zone.length) return {};
+  const beforeApex = zone.filter((s) => s[0] <= apex);
+  const entry = brake != null ? nearest(zone, brake) : beforeApex.reduce((a, b) => (b[2] > a[2] ? b : a), zone[0]);
+  const exit = nearest(zone, Math.min(apex + EXIT_M, zoneEnd));
+  const result = { entryKmh: entry[2], exitKmh: exit[2] };
+  if (zone[0].length < 13) return result; // volta antiga, sem volante/G/deriva
+
+  const turnIn = beforeApex.find((s) => s[0] >= (brake ?? zoneStart) && Math.abs(s[6]) >= TURN_IN_STEER);
+  const apexSample = samples[Math.max(apexIdx, 0)];
+  const near = (from, to) => zone.filter((s) => s[0] >= from && s[0] <= to);
+  const latG = Math.max(0, ...near(apex - 60, apex + 60).map((s) => Math.abs(s[9])));
+  const brakeG = brake == null ? null : Math.max(0, ...near(brake, apex).map((s) => -s[10]));
+  const balanceZone = near(turnIn?.[0] ?? apex - 40, apex + 40).filter((s) => s[2] > BALANCE_MIN_KMH);
+  const balanceDeg = balanceZone.length
+    ? Math.round((balanceZone.reduce((sum, s) => sum + (s[11] - s[12]), 0) / balanceZone.length) * 10) / 10
+    : null;
+  return {
+    ...result,
+    turnInRel: turnIn ? Math.round(turnIn[0] - apex) : null,
+    brakeToTurnInM: turnIn && brake != null ? Math.round(turnIn[0] - brake) : null, // 0 = freia e vira juntos
+    apexGear: apexSample[7],
+    apexRpm: apexSample[8],
+    maxLatG: Math.round(latG) / 100,
+    maxBrakeG: brakeG == null ? null : Math.round(brakeG) / 100,
+    balanceDeg,
+    balance: balanceOf(balanceDeg),
   };
 }
 
@@ -139,6 +188,8 @@ function mainCause(c) {
   if (c.minSpeedDiff != null && c.minSpeedDiff <= -4) options.push({ type: "slowApex", score: -c.minSpeedDiff / 4 });
   if (c.throttleDiffM != null && c.throttleDiffM >= 10) options.push({ type: "throttleLate", score: c.throttleDiffM / 10 });
   if (c.spinDiffM != null && c.spinDiffM >= 10) options.push({ type: "wheelspin", score: c.spinDiffM / 8 });
+  if (c.lap?.balance === "frente" && c.ref?.balance !== "frente") options.push({ type: "understeer", score: 1.2 });
+  if (c.lap?.balance === "traseira" && c.ref?.balance !== "traseira") options.push({ type: "oversteer", score: 1.2 });
   options.sort((a, b) => b.score - a.score);
   return options[0]?.type ?? "line";
 }
@@ -191,6 +242,10 @@ export function describeCause(c) {
       return `Travaste ${c.brakeDiffM} m mais tarde (passaste do ponto?)`;
     case "slowApex":
       return `Velocidade mínima ${-c.minSpeedDiff} km/h abaixo`;
+    case "understeer":
+      return "Saiu de frente (subesterço): entrou rápido demais ou virou cedo";
+    case "oversteer":
+      return "Saiu de traseira (sobre-esterço)";
     case "wheelspin":
       return `Destracionou na saída da curva (${c.lap.spinM} m patinando)`;
     case "throttleLate":

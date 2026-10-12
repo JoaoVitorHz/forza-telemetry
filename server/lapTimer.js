@@ -28,12 +28,23 @@ const REWIND_MIN_BACK_M = 5; // recuos menores contam como pausa (o carro ficou 
 
 const round1 = (v) => Math.round(v * 10) / 10;
 
-// Colunas de telemetria de cada amostra: km/h, acelerador %, travão %, patinagem das rodas de tração ×100.
+// Colunas de telemetria de cada amostra (depois de distância e tempo):
+// 2 km/h, 3 acelerador %, 4 travão %, 5 patinagem das rodas de tração ×100, 6 volante % (−100 esq. … 100 dir.),
+// 7 mudança, 8 rpm, 9 G lateral ×100, 10 G longitudinal ×100, 11 deriva frente (graus), 12 deriva trás (graus).
+const G = 9.81;
+const DEG = 180 / Math.PI;
 const traces = (t) => [
   Math.round((t?.speed ?? 0) * 3.6),
   Math.round((t?.throttle ?? 0) / 2.55),
   Math.round((t?.brake ?? 0) / 2.55),
   Math.round(Math.min(t?.drivenSlip ?? 0, 9.99) * 100),
+  Math.round(((t?.steer ?? 0) / 127) * 100),
+  t?.gear ?? 0,
+  Math.round(t?.rpm ?? 0),
+  Math.round(((t?.accelX ?? 0) / G) * 100),
+  Math.round(((t?.accelZ ?? 0) / G) * 100),
+  Math.round(Math.min(t?.slipAngleFront ?? 0, 3) * DEG),
+  Math.round(Math.min(t?.slipAngleRear ?? 0, 3) * DEG),
 ];
 const emptySectors = () => [null, null, null];
 

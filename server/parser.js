@@ -18,6 +18,11 @@ export function parsePacket(buf) {
     maxRpm: buf.readFloatLE(8),
     rpm: buf.readFloatLE(16),
     drivenSlip: Math.max(0, ...driven.map((i) => slipRatio[i])),
+    accelX: buf.readFloatLE(20), // m/s², lateral (local do carro)
+    accelZ: buf.readFloatLE(28), // m/s², longitudinal
+    // Ângulo de deriva médio (rad) das rodas da frente e de trás: frente > trás = sai de frente.
+    slipAngleFront: (Math.abs(buf.readFloatLE(164)) + Math.abs(buf.readFloatLE(168))) / 2,
+    slipAngleRear: (Math.abs(buf.readFloatLE(172)) + Math.abs(buf.readFloatLE(176))) / 2,
     carOrdinal: buf.readInt32LE(212),
     carClass: buf.readInt32LE(216),
     carPI: buf.readInt32LE(220),
