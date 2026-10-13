@@ -48,15 +48,14 @@ function DeltaBody({ state, settings }) {
   return (
     <>
       <div className={`overlay-delta ${deltaClass}`}>{fmtDelta(delta)}</div>
+      <div className={`overlay-predicted ${deltaClass}`}>
+        <span>Previsto</span> {fmtTime(timer?.predictedMs)}
+      </div>
       <div className="overlay-sub">
         <span>
           {timer?.lapNumber ? `Volta ${timer.lapNumber}` : ""} • vs {timer?.deltaMode === "ideal" ? "ideal" : "recorde"}
         </span>
         <b>{fmtTime(timer?.running ? timer.currentMs : null)}</b>
-      </div>
-      <div className="overlay-sub">
-        <span>Previsto com este ritmo</span>
-        <b className={deltaClass}>{fmtTime(timer?.predictedMs)}</b>
       </div>
       {settings.tractionAlert && timer?.tractionLoss && <div className="overlay-traction">⚠ DESTRACIONANDO</div>}
     </>
