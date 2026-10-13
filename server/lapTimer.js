@@ -143,6 +143,12 @@ export class LapTimer {
     return this.deltaMode === "ideal" && this.ideal ? this.ideal.samples : this.ref?.samples;
   }
 
+  // Tempo previsto da volta com este ritmo: tempo da referência + delta atual.
+  predictedMs(delta) {
+    const refMs = this.deltaMode === "ideal" && this.ideal ? this.ideal.ms : this.ref?.ms;
+    return delta == null || refMs == null ? null : Math.round(refMs + delta);
+  }
+
   // Grava o recorde/melhores setores do carro atual na tabela de recordes da pista.
   commitRecord() {
     if (this.carKey == null) return;
@@ -864,6 +870,7 @@ export class LapTimer {
   }
 
   snapshot() {
+    const delta = this.deltaMs();
     const b = this.bestSectors;
     return {
       track: this.track,
@@ -878,7 +885,8 @@ export class LapTimer {
       scouting: !this.start && !this.gameRace && this.autoStart,
       lapNumber: this.lapNumber,
       currentMs: this.currentMs,
-      deltaMs: this.deltaMs(),
+      deltaMs: delta,
+      predictedMs: this.predictedMs(delta),
       ghost: this.ghost(),
       partialLap: this.partial,
       tractionLoss: this.tractionLoss,

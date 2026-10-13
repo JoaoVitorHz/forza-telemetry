@@ -884,3 +884,12 @@ button.primary {
 button.primary:hover:not(:disabled) {
   background: #24854b;
 }
+
+.overlay-sub b.faster,
+.overlay-times b.faster {
+  color: #2ecc71;
+}
+.overlay-sub b.slower,
+.overlay-times b.slower {
+  color: #ff5c5c;
+}

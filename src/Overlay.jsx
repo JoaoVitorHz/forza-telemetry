@@ -54,6 +54,10 @@ function DeltaBody({ state, settings }) {
         </span>
         <b>{fmtTime(timer?.running ? timer.currentMs : null)}</b>
       </div>
+      <div className="overlay-sub">
+        <span>Previsto com este ritmo</span>
+        <b className={deltaClass}>{fmtTime(timer?.predictedMs)}</b>
+      </div>
       {settings.tractionAlert && timer?.tractionLoss && <div className="overlay-traction">⚠ DESTRACIONANDO</div>}
     </>
   );
@@ -86,6 +90,8 @@ function TimesBody({ state }) {
   const gap = last != null && best != null ? last - best : null;
   return (
     <div className="overlay-times">
+      <span>Previsto</span>
+      <b className={timer?.deltaMs == null ? "" : timer.deltaMs < 0 ? "faster" : "slower"}>{fmtTime(timer?.predictedMs)}</b>
       <span>Melhor volta</span>
       <b className="best">{fmtTime(best)}</b>
       <span>Volta ideal</span>

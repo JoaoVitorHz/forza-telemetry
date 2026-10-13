@@ -13,10 +13,10 @@ const BOUNDS_FILE = path.join(DATA, "overlay-windows.json"); // posição e tama
 
 // Tipo de overlay -> interruptor nas Configurações e tamanho inicial.
 const OVERLAYS = {
-  delta: { setting: "overlayDeltaWindow", width: 300, height: 150 },
+  delta: { setting: "overlayDeltaWindow", width: 300, height: 175 },
   sectors: { setting: "overlaySectorsWindow", width: 360, height: 120 },
   map: { setting: "overlayMapWindow", width: 320, height: 300 },
-  times: { setting: "overlayTimesWindow", width: 280, height: 130 },
+  times: { setting: "overlayTimesWindow", width: 280, height: 150 },
 };
 
 const windows = new Map();
