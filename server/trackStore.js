@@ -28,7 +28,7 @@ export class TrackStore {
   }
 
   summary() {
-    return this.tracks.map((t) => ({ id: t.id, name: t.name, recordMs: bestOfAllCars(t) }));
+    return this.tracks.map((t) => ({ id: t.id, name: t.name, recordMs: bestOfAllCars(t), sprint: !!t.finish }));
   }
 
   get(id) {

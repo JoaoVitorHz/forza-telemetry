@@ -50,7 +50,10 @@ export default function Tracks({ tracks, timer, settings, send }) {
         <ul>
           {tracks.map((tr) => (
             <li key={tr.id} className={tr.id === timer?.track?.id ? "active" : ""}>
-              <span className="name">{tr.name}</span>
+              <span className="name">
+                {tr.name}
+                {tr.sprint && <span className="sprint-tag">sprint</span>}
+              </span>
               <span className="record">{fmtTime(tr.recordMs)}</span>
               <button onClick={() => send({ type: "loadTrack", id: tr.id })} title="Usar esta pista">
                 Usar

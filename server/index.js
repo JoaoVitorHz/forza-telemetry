@@ -33,7 +33,13 @@ applySettings();
 // Recorde, setores ou melhores setores mudaram numa pista guardada: grava logo no ficheiro.
 timer.onTrackUpdate = () => {
   if (!timer.track) return;
-  store.update(timer.track.id, { records: timer.records, sectors: timer.sectors, corners: timer.corners, path: timer.trackPath });
+  store.update(timer.track.id, {
+    records: timer.records,
+    sectors: timer.sectors,
+    corners: timer.corners,
+    path: timer.trackPath,
+    finish: timer.finish,
+  });
   console.log(`[pistas] "${timer.track.name}" atualizada`);
   broadcastTracks();
 };
@@ -147,6 +153,7 @@ function trackView(id) {
     id: track.id,
     name: track.name,
     start: track.start,
+    finish: track.finish ?? null,
     sectors: track.sectors ?? null,
     corners: track.corners ?? null,
     path: track.path ?? null,
@@ -161,13 +168,13 @@ const EXPORT_FORMAT = "forza-telemetry-track";
 function exportTrack(id, includeLaps) {
   const track = store.get(id);
   if (!track) return null;
-  const { name, start, sectors, corners, path, records } = track;
+  const { name, start, finish, sectors, corners, path, records } = track;
   return {
     format: EXPORT_FORMAT,
     version: 1,
     exportedAt: new Date().toISOString(),
     carNames: cars.names,
-    track: { name, start, sectors, corners, path, records },
+    track: { name, start, finish, sectors, corners, path, records },
     laps: includeLaps ? readLaps(id) : [],
   };
 }
@@ -182,7 +189,7 @@ function importTrack(data) {
   const t = data.track;
   const records = t.records && typeof t.records === "object" ? t.records : {};
   const name = `${String(t.name ?? "Pista").slice(0, 50)} (importada)`;
-  const track = store.add({ name, start: t.start, sectors: t.sectors ?? null, corners: t.corners ?? null, path: t.path ?? null, records });
+  const track = store.add({ name, start: t.start, finish: t.finish ?? null, sectors: t.sectors ?? null, corners: t.corners ?? null, path: t.path ?? null, records });
   for (const lap of Array.isArray(data.laps) ? data.laps : []) {
     if (Number.isFinite(lap?.ms)) appendLap(track.id, lap);
   }
@@ -276,6 +283,7 @@ wss.on("connection", (ws) => {
       return;
     }
     if (msg.type === "setStart" && latest) timer.setStart(latest);
+    else if (msg.type === "setFinish" && latest) timer.setFinish(latest);
     else if (msg.type === "reset") timer.reset();
     else if (msg.type === "togglePause") timer.manualPause = !timer.manualPause;
     else if (msg.type === "getLap") {
@@ -318,6 +326,7 @@ wss.on("connection", (ws) => {
       const track = store.add({
         name,
         start: timer.start,
+        finish: timer.finish,
         sectors: timer.sectors,
         corners: timer.corners,
         path: timer.trackPath,

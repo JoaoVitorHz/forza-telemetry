@@ -99,7 +99,7 @@ export default function TrackMap({
     const lapPath = lap?.path ?? [];
     const all = lap
       ? [...ref, ...lapPath]
-      : [...ref, ...trail, ...(map?.start ? [map.start] : []), ...(pos ? [pos] : [])];
+      : [...ref, ...trail, ...(map?.start ? [map.start] : []), ...(map?.finish ? [map.finish] : []), ...(pos ? [pos] : [])];
     if (all.length < 2) {
       ctx.fillStyle = "#666";
       ctx.font = "16px system-ui";
@@ -189,6 +189,15 @@ export default function TrackMap({
       ctx.textAlign = "left";
       ctx.fillText(`S${i + 1}`, x + 8, y + 4);
     });
+    if (map?.finish) {
+      dot(map.finish, "#fff", 7);
+      dot(map.finish, "#e74c3c", 5);
+      const [fx, fy] = proj(map.finish);
+      ctx.fillStyle = "#ff6b5c";
+      ctx.font = "bold 13px system-ui";
+      ctx.textAlign = "left";
+      ctx.fillText("CHEGADA", fx + 10, fy + 4);
+    }
     if (map?.start) {
       dot(map.start, "#2ecc71", 7);
       const [sx, sy] = proj(map.start);

@@ -865,3 +865,14 @@ body.overlay-body {
   color: #777;
   text-decoration: line-through;
 }
+
+.sprint-tag {
+  margin-left: 6px;
+  font-size: 10px;
+  font-weight: 700;
+  color: #ff6b5c;
+  border: 1px solid #ff6b5c66;
+  border-radius: 3px;
+  padding: 0 4px;
+  vertical-align: middle;
+}

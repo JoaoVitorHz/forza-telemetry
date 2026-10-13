@@ -87,7 +87,7 @@ export default function App() {
   else if (timer?.running)
     status = (
       <p className="status good">
-        {timer.gameTiming ? "A gravar • tempos do jogo" : timer.autoDetected && !timer.track ? "A gravar • partida detetada automaticamente" : "A gravar"}
+        {timer.sprint ? "A gravar • sprint" : timer.gameTiming ? "A gravar • tempos do jogo" : timer.autoDetected && !timer.track ? "A gravar • partida detetada automaticamente" : "A gravar"}
       </p>
     );
   else if (timer?.start) status = <p className="status">À espera de passares na partida…</p>;
@@ -241,6 +241,11 @@ export default function App() {
             <button onClick={() => send({ type: "setStart" })} disabled={!state?.receiving}>
               Definir partida
             </button>
+            {timer?.running && !timer.gameTiming && !timer.sprint && (
+              <button onClick={() => send({ type: "setFinish" })} title="Sprint (A→B): a corrida acaba aqui e este ponto fica como chegada">
+                Definir chegada
+              </button>
+            )}
             <button onClick={() => send({ type: "togglePause" })} className={timer?.manualPause ? "active" : ""}>
               {timer?.manualPause ? "Retomar" : "Pausar"}
             </button>

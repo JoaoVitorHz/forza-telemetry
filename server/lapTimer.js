@@ -86,6 +86,8 @@ export class LapTimer {
 
   reset() {
     this.track = null; // { id, name } se a pista estiver guardada
+    this.finish = null; // sprint (A→B): linha de chegada { x, z, dir }; null = circuito
+    this.raceSuspended = null; // último pacote antes de a corrida do jogo parar de enviar dados
     this.autoDetected = false; // partida encontrada sozinha (pista ainda não guardada)
     this.scout = []; // trajeto à procura de um circuito: { x, z, dir, dist, sample }
     this.scoutDist = 0;
@@ -242,6 +244,7 @@ export class LapTimer {
     this.reset();
     this.track = { id: track.id, name: track.name };
     this.start = track.start;
+    this.finish = track.finish ?? null;
     this.sectors = track.sectors ?? null;
     this.corners = cornersAreCurrent(track.corners) ? track.corners : null; // antigas: recalcula
     this.trackPath = track.path ?? null;
@@ -256,6 +259,7 @@ export class LapTimer {
   attachTrack(track) {
     this.track = { id: track.id, name: track.name };
     this.start = track.start;
+    this.finish = track.finish ?? this.finish;
     this.sectors = track.sectors ?? this.sectors;
     this.corners = cornersAreCurrent(track.corners) ? track.corners : this.corners;
     this.trackPath = track.path ?? this.trackPath;
@@ -309,8 +313,23 @@ export class LapTimer {
     const prev = this.prev;
     this.prev = t;
     this.paused = !t.isRaceOn;
-    if (!t.isRaceOn || this.manualPause) return;
+    if (!t.isRaceOn) {
+      // O jogo deixou de enviar dados de corrida: pausa, retroceder ou fim da corrida. Guarda o
+      // último pacote para decidir quando os dados voltarem.
+      if (prev?.isRaceOn && this.gameRace && this.running) this.raceSuspended = prev;
+      return;
+    }
+    if (this.manualPause) return;
     this.setCar(String(t.carOrdinal));
+
+    // Os dados voltaram: com o tempo de volta a contar foi pausa/retroceder; a zero, a corrida
+    // acabou. Numa sprint (e às vezes na última volta) o jogo pára de enviar logo na meta sem
+    // mandar o tempo final, que é o último tempo de volta recebido.
+    if (this.raceSuspended) {
+      const last = this.raceSuspended;
+      this.raceSuspended = null;
+      if (t.currentLap === 0) this.finishRace(last);
+    }
 
     // Destracionar: rodas de tração a patinar com o pé no acelerador. Conta cada vez que começa.
     const loss = t.throttle >= SPIN_MIN_THROTTLE && t.speed * 3.6 > SPIN_MIN_KMH && t.drivenSlip > this.spinThreshold;
@@ -341,6 +360,7 @@ export class LapTimer {
     // dt = 0 acontece (o jogo às vezes repete o timestamp): o carro andou na mesma, por isso a
     // distância conta; só intervalos negativos (pacote fora de ordem) ou longos são descartados.
     const validStep = dt >= 0 && dt <= MAX_DT_MS && step <= MAX_STEP_M;
+    if (validStep && step > 0.5) this.travelDir = { x: (t.x - prev.x) / step, z: (t.z - prev.z) / step };
 
     if (this.gameRace) {
       this.updateRace(t, prev, validStep ? step : 0);
@@ -375,6 +395,16 @@ export class LapTimer {
     }
     this.prevStartDist = d;
 
+    // Sprint: a volta acaba ao cruzar a linha de chegada (também interpolada), não a partida.
+    let finishF = null;
+    if (this.finish) {
+      const fd = Math.hypot(t.x - this.finish.x, t.z - this.finish.z);
+      const side = (t.x - this.finish.x) * this.finish.dir.x + (t.z - this.finish.z) * this.finish.dir.z;
+      const prevSide = this.finishPrevSide;
+      if (fd < START_RADIUS && prevSide != null && prevSide < 0 && side >= 0) finishF = prevSide / (prevSide - side);
+      this.finishPrevSide = fd < START_RADIUS * 2 ? side : null;
+    }
+
     if (!this.running) {
       if (crossF != null) {
         this.beginLap();
@@ -396,6 +426,10 @@ export class LapTimer {
     }
 
     if (!this.armed && d > ARM_DISTANCE) this.armed = true;
+    if (this.finish) {
+      if (this.armed && finishF != null && this.currentMs > MIN_LAP_MS) this.completeLap(Math.round(prevMs + finishF * dt), t);
+      return;
+    }
     if (this.armed && crossF != null && this.currentMs > MIN_LAP_MS) {
       const lapMs = Math.round(prevMs + crossF * dt);
       const carry = this.currentMs - lapMs; // o resto do intervalo já pertence à volta seguinte
@@ -645,7 +679,44 @@ export class LapTimer {
     }
     this.rebuildIdeal();
     this.onLapComplete?.(this.getLap(this.lapNumber));
-    this.beginLap(pos);
+    if (this.finish) this.endRun();
+    else this.beginLap(pos);
+  }
+
+  // Sprint terminada: fica à espera de passar outra vez na partida.
+  endRun() {
+    this.running = false;
+    this.currentMs = 0;
+    this.prevStartDist = Infinity;
+    this.startPrevSide = null;
+    this.finishPrevSide = null;
+  }
+
+  // Fim de uma corrida do jogo (dados pararam e voltaram com o tempo a zero). Numa sprint (número
+  // da volta sempre 0) o ponto onde os dados pararam é a chegada.
+  finishRace(last) {
+    const ms = Math.round(last.currentLap * 1000);
+    if (this.running && ms > MIN_LAP_MS) {
+      if (last.lapNumber === 0 && this.gameLap === 0 && !this.finish) {
+        const dir = this.travelDir ?? { x: 0, z: 1 };
+        this.finish = { x: last.x, z: last.z, dir };
+        if (!this.start) this.start = { ...this.path[0], dir: pathDir(this.path) };
+        this.mapVersion++;
+        console.log(`[sprint] chegada marcada pelo fim da corrida (${(ms / 1000).toFixed(3)} s)`);
+      }
+      this.currentMs = ms;
+      this.completeLap(ms, last);
+    }
+    this.leaveRace();
+  }
+
+  // "Definir chegada": a sprint acaba aqui e este ponto fica como linha de chegada.
+  setFinish(t) {
+    if (!this.start || !this.running || this.gameRace) return false;
+    this.finish = { x: t.x, z: t.z, dir: this.travelDir ?? { x: 0, z: 1 } };
+    this.mapVersion++;
+    this.completeLap(this.currentMs, t);
+    return true;
   }
 
   // Comprimento normal de uma volta deste carro: mediana das voltas válidas da sessão (incluindo a
@@ -774,6 +845,7 @@ export class LapTimer {
       paused: this.paused,
       running: this.running,
       gameTiming: this.gameRace,
+      sprint: !!this.finish,
       autoDetected: this.autoDetected,
       scouting: !this.start && !this.gameRace && this.autoStart,
       lapNumber: this.lapNumber,
@@ -814,12 +886,21 @@ export class LapTimer {
   mapData() {
     return {
       start: this.start,
+      finish: this.finish,
       refPath: this.ref?.path ?? this.trackPath,
       sectors: this.sectors,
       corners: this.corners,
       mapVersion: this.mapVersion,
     };
   }
+}
+
+// Direção do início de um traçado (para a linha de partida de uma sprint).
+function pathDir(path) {
+  const a = path[0];
+  const b = path[Math.min(path.length - 1, 5)];
+  const len = Math.hypot(b.x - a.x, b.z - a.z) || 1;
+  return { x: (b.x - a.x) / len, z: (b.z - a.z) / len };
 }
 
 // Comprimentos acumulados do traçado do recorde (em cache).

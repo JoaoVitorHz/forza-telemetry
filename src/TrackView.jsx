@@ -142,6 +142,7 @@ export default function TrackView({ view, savedLap, activeTrackId, liveCar, carN
         <TrackMap
           map={{
             start: view.start,
+            finish: view.finish,
             refPath: car?.refPath ?? view.path,
             sectors: view.sectors,
             corners: view.corners,
