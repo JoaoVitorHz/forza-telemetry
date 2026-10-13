@@ -284,6 +284,7 @@ wss.on("connection", (ws) => {
     }
     if (msg.type === "setStart" && latest) timer.setStart(latest);
     else if (msg.type === "setFinish" && latest) timer.setFinish(latest);
+    else if (msg.type === "finishRace") timer.finishSuspendedRace();
     else if (msg.type === "reset") timer.reset();
     else if (msg.type === "togglePause") timer.manualPause = !timer.manualPause;
     else if (msg.type === "getLap") {

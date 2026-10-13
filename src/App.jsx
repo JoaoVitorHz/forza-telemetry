@@ -83,6 +83,8 @@ export default function App() {
   if (!online) status = <p className="status bad">Sem ligação ao servidor (npm run server)</p>;
   else if (!state?.receiving) status = <p className="status bad">À espera do jogo… (Data Out → 127.0.0.1:8005)</p>;
   else if (timer?.manualPause) status = <p className="status bad">PAUSADO • carrega em «Retomar» para continuar</p>;
+  else if (timer?.raceSuspended)
+    status = <p className="status bad">CORRIDA PARADA • se já cruzaste a chegada, carrega em «Terminei a corrida»</p>;
   else if (timer?.paused) status = <p className="status bad">TELEMETRIA EM PAUSA • cronómetro congelado</p>;
   else if (timer?.running)
     status = (
@@ -241,6 +243,11 @@ export default function App() {
             <button onClick={() => send({ type: "setStart" })} disabled={!state?.receiving}>
               Definir partida
             </button>
+            {timer?.raceSuspended && (
+              <button className="primary" onClick={() => send({ type: "finishRace" })} title="Termina a corrida com o último tempo recebido do jogo">
+                Terminei a corrida
+              </button>
+            )}
             {timer?.running && !timer.gameTiming && !timer.sprint && (
               <button onClick={() => send({ type: "setFinish" })} title="Sprint (A→B): a corrida acaba aqui e este ponto fica como chegada">
                 Definir chegada

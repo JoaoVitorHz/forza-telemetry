@@ -876,3 +876,11 @@ body.overlay-body {
   padding: 0 4px;
   vertical-align: middle;
 }
+
+button.primary {
+  background: #1f6f3f;
+  border-color: #2ecc71;
+}
+button.primary:hover:not(:disabled) {
+  background: #24854b;
+}

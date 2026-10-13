@@ -16,6 +16,8 @@ const SAMPLE_STEP_M = 2; // resolução das amostras guardadas para o delta
 const GATE_RADIUS = 30; // m — largura máxima da "linha" de cada setor
 const SPIN_MIN_THROTTLE = 77; // acelerador (0–255, ≈30%) a partir do qual a patinagem conta como destracionar
 const SPIN_MIN_KMH = 5;
+const SPIN_MIN_MS = 150; // patinagem tem de durar isto para contar como destracionar
+const SPIN_GAP_MS = 400; // patinadas separadas por menos disto contam como uma só
 // Batida: perda brusca de velocidade que a travagem não explica. Só vai para o relatório.
 // (A força G não serve: tem picos falsos em lombadas e zebras, e carros rápidos curvam acima de 3 G.)
 const IMPACT_WINDOW_MS = 250;
@@ -331,10 +333,25 @@ export class LapTimer {
       if (t.currentLap === 0) this.finishRace(last);
     }
 
-    // Destracionar: rodas de tração a patinar com o pé no acelerador. Conta cada vez que começa.
+    // Destracionar: rodas de tração a patinar com o pé no acelerador. Só conta se durar
+    // SPIN_MIN_MS (patinadas de instantes em trocas de mudança/zebras não contam) e patinadas
+    // separadas por menos de SPIN_GAP_MS contam como uma só.
     const loss = t.throttle >= SPIN_MIN_THROTTLE && t.speed * 3.6 > SPIN_MIN_KMH && t.drivenSlip > this.spinThreshold;
-    if (loss && !this.tractionLoss && this.running) this.spinEvents++;
-    this.tractionLoss = loss;
+    if (loss) {
+      this.spinSince ??= t.timestampMs;
+      this.spinOffSince = null;
+      if (!this.spinCounted && this.running && t.timestampMs - this.spinSince >= SPIN_MIN_MS) {
+        this.spinEvents++;
+        this.spinCounted = true;
+      }
+    } else {
+      this.spinOffSince ??= t.timestampMs;
+      if (t.timestampMs - this.spinOffSince >= SPIN_GAP_MS) {
+        this.spinSince = null;
+        this.spinCounted = false;
+      }
+    }
+    this.tractionLoss = loss && t.timestampMs - (this.spinSince ?? t.timestampMs) >= SPIN_MIN_MS;
     this.detectImpact(t, prev);
 
     // Corrida oficial: o jogo envia o tempo da volta; fora dela vem a zero. (O "tempo de corrida"
@@ -710,6 +727,16 @@ export class LapTimer {
     this.leaveRace();
   }
 
+  // Botão "Terminei a corrida": na tela de resultados o jogo não envia dados, por isso o fim da
+  // corrida só seria detetado ao voltar ao mundo aberto; assim termina já com o último tempo.
+  finishSuspendedRace() {
+    const last = this.raceSuspended;
+    if (!last) return false;
+    this.raceSuspended = null;
+    this.finishRace(last);
+    return true;
+  }
+
   // "Definir chegada": a sprint acaba aqui e este ponto fica como linha de chegada.
   setFinish(t) {
     if (!this.start || !this.running || this.gameRace) return false;
@@ -846,6 +873,7 @@ export class LapTimer {
       running: this.running,
       gameTiming: this.gameRace,
       sprint: !!this.finish,
+      raceSuspended: !!this.raceSuspended,
       autoDetected: this.autoDetected,
       scouting: !this.start && !this.gameRace && this.autoStart,
       lapNumber: this.lapNumber,
