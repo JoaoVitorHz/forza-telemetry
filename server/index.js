@@ -74,12 +74,35 @@ timer.onTrackUpdate = () => {
 timer.onLapComplete = (lap) => {
   if (!lap) return;
   const record = lapRecord(lap);
+  const live = timer.laps.find((l) => l.n === lap.n);
+  if (live) live.id = record.id; // liga a volta ao vivo à volta gravada (para a poder apagar)
   sessions.append({ ...record, trackId: timer.track?.id ?? null, trackName: timer.track?.name ?? null });
   broadcast({ type: "sessions", list: sessions.list() });
   if (!timer.track) return;
   appendLap(timer.track.id, record);
   broadcastTracks();
 };
+
+// Apaga voltas de verdade: da sessão, do histórico da pista (recalculando o recorde se era uma delas)
+// e da lista ao vivo. lapIds = null apaga a sessão inteira.
+function deleteRecordedLaps(sessionId, lapIds) {
+  const gone = sessions.remove(sessionId, lapIds);
+  const byTrack = {};
+  for (const lap of gone) if (lap.trackId) (byTrack[lap.trackId] ??= []).push(lap);
+  for (const [trackId, laps] of Object.entries(byTrack)) {
+    removeLaps(trackId, new Set(laps.map((l) => l.id)));
+    if (store.afterLapsRemoved(trackId, laps) && timer.track?.id === trackId) {
+      timer.records = structuredClone(store.get(trackId).records ?? {});
+      timer.applyCar();
+      timer.mapVersion++;
+    }
+  }
+  timer.removeLaps({ ids: new Set(gone.map((l) => l.id)) });
+  console.log(`[sessões] ${gone.length} volta(s) apagada(s)`);
+  broadcast({ type: "sessions", list: sessions.list() });
+  broadcastTracks();
+  return gone;
+}
 
 // Referência de uma volta de uma sessão antiga: recorde do carro na pista guardada ou, sem pista
 // guardada, a melhor volta completa da sessão na mesma pista com o mesmo carro.
@@ -386,22 +409,13 @@ wss.on("connection", (ws) => {
     } else if (msg.type === "getTrackView") send(ws, { type: "trackView", view: trackView(msg.id) });
     else if (msg.type === "listSessions") send(ws, { type: "sessions", list: sessions.list() });
     else if (msg.type === "deleteSessionLaps" && msg.sessionId) {
-      // Apaga de verdade: da sessão e do histórico da pista (e recalcula o recorde se for preciso).
-      const gone = sessions.remove(msg.sessionId, msg.lapIds ? new Set(msg.lapIds) : null);
-      const byTrack = {};
-      for (const lap of gone) if (lap.trackId) (byTrack[lap.trackId] ??= []).push(lap);
-      for (const [trackId, laps] of Object.entries(byTrack)) {
-        removeLaps(trackId, new Set(laps.map((l) => l.id)));
-        if (store.afterLapsRemoved(trackId, laps) && timer.track?.id === trackId) {
-          timer.records = structuredClone(store.get(trackId).records ?? {});
-          timer.applyCar();
-          timer.mapVersion++;
-        }
-      }
-      console.log(`[sessões] ${gone.length} volta(s) apagada(s)`);
-      broadcast({ type: "sessions", list: sessions.list() });
-      broadcastTracks();
+      deleteRecordedLaps(msg.sessionId, msg.lapIds ? new Set(msg.lapIds) : null);
       if (msg.lapIds) send(ws, { type: "sessionView", id: msg.sessionId, laps: sessions.read(msg.sessionId).map(({ path, samples, splitIdx, ...l }) => l) });
+    } else if (msg.type === "deleteLiveLap") {
+      // Volta da lista ao vivo: se já foi gravada, apaga-a também da sessão e do histórico da pista.
+      const live = timer.laps.find((l) => l.n === msg.n);
+      if (live?.id && sessions.current) deleteRecordedLaps(sessions.current, new Set([live.id]));
+      timer.removeLaps({ numbers: new Set([msg.n]) });
     }
     else if (msg.type === "getSession") {
       const laps = sessions.read(msg.id).map(({ path, samples, splitIdx, ...lap }) => lap);

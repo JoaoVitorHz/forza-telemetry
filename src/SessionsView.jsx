@@ -73,7 +73,6 @@ export default function SessionsView({ sessions, sessionView, sessionLap, carNam
   };
 
   const deleteLap = (l) => {
-    if (!confirm(`Apagar a volta ${l.n} (${fmtTime(l.ms)})? Sai também do histórico da pista e, se era o recorde, o recorde é recalculado. Não dá para desfazer.`)) return;
     if (l.id === lapId) setLapId(null);
     send({ type: "deleteSessionLaps", sessionId, lapIds: [l.id] });
   };

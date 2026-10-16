@@ -340,7 +340,17 @@ export default function App() {
           {settings.lapAnalysis && timer?.lastAnalysis && (
             <LapAnalysis title={`ONDE PERDESTE TEMPO • VOLTA ${timer.lastAnalysis.n}`} items={timer.lastAnalysis.items} />
           )}
-          {settings.showLapHistory && <LapHistory laps={timer?.laps} selected={selectedLap} onSelect={selectLap} />}
+          {settings.showLapHistory && (
+            <LapHistory
+              laps={timer?.laps}
+              selected={selectedLap}
+              onSelect={selectLap}
+              onDelete={(lap) => {
+                if (lap.n === selectedLap) setSelectedLap(null);
+                send({ type: "deleteLiveLap", n: lap.n });
+              }}
+            />
+          )}
           {timer?.laps?.length > 0 && (
             <ExportPanel
               source="session"

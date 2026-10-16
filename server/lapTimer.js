@@ -778,6 +778,30 @@ export class LapTimer {
     this.currentMs = Math.round(t.currentLap * 1000);
   }
 
+  // Tira voltas da lista ao vivo (apagadas pelo utilizador): pelo id gravado ou pelo número.
+  // Recalcula o melhor da sessão, a volta ideal e, numa pista não guardada, a referência.
+  removeLaps({ ids = new Set(), numbers = new Set() }) {
+    const gone = this.laps.filter((l) => (l.id && ids.has(l.id)) || numbers.has(l.n));
+    if (!gone.length) return [];
+    for (const l of gone) this.lapPaths.delete(l.n);
+    this.laps = this.laps.filter((l) => !gone.includes(l));
+    const mine = this.laps.filter((l) => l.car === this.carKey && !l.invalid && !l.partial);
+    this.sessionBestMs = mine.length ? Math.min(...mine.map((l) => l.ms)) : null;
+    if (gone.some((l) => l.n === this.lastAnalysis?.n)) this.lastAnalysis = null;
+    const last = this.laps[this.laps.length - 1];
+    this.lastLapMs = last && !last.partial ? last.ms : null;
+    // Sem pista guardada a referência vem só da sessão: se era uma volta apagada, passa para a melhor que sobra.
+    if (!this.track && this.ref && gone.some((l) => l.ms === this.ref.ms && l.car === this.carKey)) {
+      const best = mine.sort((a, b) => a.ms - b.ms)[0];
+      const detail = best && this.lapPaths.get(best.n);
+      this.ref = detail ? { ms: best.ms, samples: detail.samples, path: detail.path } : null;
+      this.commitRecord();
+      this.mapVersion++;
+    }
+    this.rebuildIdeal();
+    return gone;
+  }
+
   // Servidor reiniciado a meio de uma sessão: repõe as voltas já gravadas na lista ao vivo.
   restoreSession(saved) {
     saved.forEach((lap, i) => {
@@ -786,6 +810,7 @@ export class LapTimer {
       const lengthM = Math.round(lap.samples?.[lap.samples.length - 1]?.[0] ?? 0);
       this.laps.push({
         n,
+        id: lap.id,
         ms: lap.ms,
         color: lap.color,
         splits: lap.splits ?? [],
