@@ -35,6 +35,9 @@ const RACE_END_MS = 3000; // tempo de volta do jogo a 0 durante isto = a corrida
 const LAP_DROP_MS = 1500; // número da volta mais baixo durante isto = corrida recomeçada
 const RESTART_RADIUS_M = 150; // dados voltam com o carro a menos disto da partida = tentativa reiniciada
 const RESTART_TIME_DROP_S = 2; // tempo de volta do jogo recuou mais do que isto (e carro na partida) = reinício
+// No FH6, ao reiniciar, o relógio da corrida volta a ~0 ainda com o carro onde estava (só depois é
+// levado para a partida). Relógio a voltar para menos disto, depois de já ter passado, = reinício.
+const RESTART_CLOCK_S = 3;
 const PARTIAL_MIN_MS = 3000; // tentativas reiniciadas mais curtas que isto não são guardadas
 const REWIND_MATCH_M = 8; // depois de retroceder o carro reaparece num ponto já percorrido (a menos disto)
 const REWIND_MIN_BACK_M = 5; // recuos menores contam como pausa (o carro ficou no mesmo sítio)
@@ -362,7 +365,7 @@ export class LapTimer {
         } else {
           this.finishRace(last);
         }
-      } else if (backAtStart && t.currentLap < last.currentLap - RESTART_TIME_DROP_S) {
+      } else if (this.isRestart(t.currentLap, last.currentLap, backAtStart)) {
         this.restartRun(t);
       }
     }
@@ -536,8 +539,8 @@ export class LapTimer {
 
   updateRace(t, prev, step) {
     if (!this.running) this.beginLap(t); // ex.: depois de Reiniciar a meio da corrida
-    // Reinício sem pausa nos dados: o tempo de volta recua de repente e o carro está na partida.
-    if (t.currentLap * 1000 < this.currentMs - RESTART_TIME_DROP_S * 1000 && this.nearRunStart(t)) {
+    // Reinício sem pausa nos dados (tem de ser visto antes de o tempo novo apagar o da tentativa).
+    if (this.isRestart(t.currentLap, this.currentMs / 1000, this.nearRunStart(t))) {
       this.restartRun(t);
       return;
     }
@@ -755,6 +758,13 @@ export class LapTimer {
   // pode ter sido apanhada a meio, ex.: programa reiniciado durante a corrida).
   nearRunStart(t) {
     return [this.path?.[0], this.start].some((o) => o && Math.hypot(t.x - o.x, t.z - o.z) < RESTART_RADIUS_M);
+  }
+
+  // Reinício: o relógio da corrida volta para perto de zero depois de já ter passado (retroceder
+  // nunca vai até aí), ou recua com o carro de volta à partida.
+  isRestart(clockS, previousS, atStart) {
+    if (clockS < RESTART_CLOCK_S && previousS > RESTART_CLOCK_S + RESTART_TIME_DROP_S) return true;
+    return atStart && clockS < previousS - RESTART_TIME_DROP_S;
   }
 
   // Corrida do jogo reiniciada: guarda a tentativa como parcial e começa outra já.
