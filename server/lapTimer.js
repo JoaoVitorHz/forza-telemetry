@@ -34,6 +34,7 @@ const ABANDON_FACTOR = 3; // volta automática com mais do triplo da primeira = 
 const RACE_END_MS = 3000; // tempo de volta do jogo a 0 durante isto = a corrida acabou
 const LAP_DROP_MS = 1500; // número da volta mais baixo durante isto = corrida recomeçada
 const RESTART_RADIUS_M = 150; // dados voltam com o carro a menos disto da partida = tentativa reiniciada
+const RESTART_TIME_DROP_S = 2; // tempo de volta do jogo recuou mais do que isto (e carro na partida) = reinício
 const PARTIAL_MIN_MS = 3000; // tentativas reiniciadas mais curtas que isto não são guardadas
 const REWIND_MATCH_M = 8; // depois de retroceder o carro reaparece num ponto já percorrido (a menos disto)
 const REWIND_MIN_BACK_M = 5; // recuos menores contam como pausa (o carro ficou no mesmo sítio)
@@ -338,16 +339,18 @@ export class LapTimer {
     if (this.raceSuspended) {
       const last = this.raceSuspended;
       this.raceSuspended = null;
+      // Reinício: o carro reaparece na partida (numa chegada fica longe dela). Os dados podem voltar
+      // com o tempo a zero ou já com o relógio da nova tentativa a contar.
+      const backAtStart = this.nearRunStart(t);
       if (t.currentLap === 0) {
-        // Reinício: o carro reaparece na partida (numa chegada fica longe dela).
-        const origin = this.path?.[0];
-        const backAtStart = origin && Math.hypot(t.x - origin.x, t.z - origin.z) < RESTART_RADIUS_M;
         if (backAtStart) {
           this.abortRun();
           this.leaveRace();
         } else {
           this.finishRace(last);
         }
+      } else if (backAtStart && t.currentLap < last.currentLap - RESTART_TIME_DROP_S) {
+        this.restartRun(t);
       }
     }
 
@@ -519,6 +522,11 @@ export class LapTimer {
 
   updateRace(t, prev, step) {
     if (!this.running) this.beginLap(t); // ex.: depois de Reiniciar a meio da corrida
+    // Reinício sem pausa nos dados: o tempo de volta recua de repente e o carro está na partida.
+    if (t.currentLap * 1000 < this.currentMs - RESTART_TIME_DROP_S * 1000 && this.nearRunStart(t)) {
+      this.restartRun(t);
+      return;
+    }
     if (t.lapNumber > this.gameLap && t.lastLap > 0) {
       this.gameLap = t.lapNumber;
       // A linha de meta do jogo passa a ser a partida (para o mapa e para guardar a pista).
@@ -727,6 +735,22 @@ export class LapTimer {
     this.onLapComplete?.(this.getLap(this.lapNumber));
     if (this.finish) this.endRun();
     else this.beginLap(pos);
+  }
+
+  // Carro de volta à partida desta tentativa (onde a corrida começou).
+  nearRunStart(t) {
+    const origin = this.path?.[0];
+    return !!origin && Math.hypot(t.x - origin.x, t.z - origin.z) < RESTART_RADIUS_M;
+  }
+
+  // Corrida do jogo reiniciada: guarda a tentativa como parcial e começa outra já.
+  restartRun(t) {
+    console.log("[volta] corrida reiniciada");
+    this.abortRun();
+    this.gameLap = t.lapNumber;
+    this.lapDropSince = null;
+    this.beginLap(t);
+    this.currentMs = Math.round(t.currentLap * 1000);
   }
 
   // Tentativa interrompida (reiniciada/abandonada): guarda o que fez como volta "parcial" — tempo e
