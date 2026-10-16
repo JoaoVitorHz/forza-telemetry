@@ -85,6 +85,7 @@ export class LapTimer {
     this.deltaMode = "best"; // referência do delta e do fantasma: "best" (recorde) ou "ideal"
     this.historyLaps = null; // (idPista, carro) => voltas guardadas { ms, samples, gateTimes } (dado pelo servidor)
     this.onTrackUpdate = null; // chamado quando recorde, setores ou melhores setores mudam
+    this.debug = null; // (evento, dados) => registo de diagnóstico (dado pelo servidor)
     this.onLapComplete = null; // chamado com cada volta fechada (com traçado), para o histórico
     this.reset();
   }
@@ -327,7 +328,10 @@ export class LapTimer {
     if (!t.isRaceOn) {
       // O jogo deixou de enviar dados de corrida: pausa, retroceder ou fim da corrida. Guarda o
       // último pacote para decidir quando os dados voltarem.
-      if (prev?.isRaceOn && this.gameRace && this.running) this.raceSuspended = prev;
+      if (prev?.isRaceOn && this.gameRace && this.running) {
+        this.raceSuspended = prev;
+        this.debug?.("dados pararam", { tempo: prev.currentLap, volta: prev.lapNumber, dist: Math.round(this.lapDist) });
+      }
       return;
     }
     if (this.manualPause) return;
@@ -339,6 +343,15 @@ export class LapTimer {
     if (this.raceSuspended) {
       const last = this.raceSuspended;
       this.raceSuspended = null;
+      const o = this.path?.[0];
+      this.debug?.("dados voltaram", {
+        tempo: t.currentLap,
+        tempoAntes: last.currentLap,
+        volta: t.lapNumber,
+        m_ate_inicio_tentativa: o ? Math.round(Math.hypot(t.x - o.x, t.z - o.z)) : null,
+        m_ate_partida: this.start ? Math.round(Math.hypot(t.x - this.start.x, t.z - this.start.z)) : null,
+        m_ate_chegada: this.finish ? Math.round(Math.hypot(t.x - this.finish.x, t.z - this.finish.z)) : null,
+      });
       // Reinício: o carro reaparece na partida (numa chegada fica longe dela). Os dados podem voltar
       // com o tempo a zero ou já com o relógio da nova tentativa a contar.
       const backAtStart = this.nearRunStart(t);
@@ -502,6 +515,7 @@ export class LapTimer {
   }
 
   enterRace(t) {
+    this.debug?.("corrida começou", { tempo: t.currentLap, volta: t.lapNumber });
     this.gameRace = true;
     this.gameLap = t.lapNumber;
     this.lapDropSince = null;
@@ -737,15 +751,16 @@ export class LapTimer {
     else this.beginLap(pos);
   }
 
-  // Carro de volta à partida desta tentativa (onde a corrida começou).
+  // Carro de volta à partida: onde esta tentativa começou ou a partida da pista guardada (a tentativa
+  // pode ter sido apanhada a meio, ex.: programa reiniciado durante a corrida).
   nearRunStart(t) {
-    const origin = this.path?.[0];
-    return !!origin && Math.hypot(t.x - origin.x, t.z - origin.z) < RESTART_RADIUS_M;
+    return [this.path?.[0], this.start].some((o) => o && Math.hypot(t.x - o.x, t.z - o.z) < RESTART_RADIUS_M);
   }
 
   // Corrida do jogo reiniciada: guarda a tentativa como parcial e começa outra já.
   restartRun(t) {
     console.log("[volta] corrida reiniciada");
+    this.debug?.("reinício", { tempo: t.currentLap });
     this.abortRun();
     this.gameLap = t.lapNumber;
     this.lapDropSince = null;
@@ -758,7 +773,11 @@ export class LapTimer {
   abortRun() {
     if (!this.running) return;
     this.running = false;
-    if (this.partial || this.lapDist < ARM_DISTANCE || this.currentMs < PARTIAL_MIN_MS) return;
+    if (this.partial || this.lapDist < ARM_DISTANCE || this.currentMs < PARTIAL_MIN_MS) {
+      this.debug?.("tentativa interrompida não guardada", { apanhadaAMeio: !!this.partial, dist: Math.round(this.lapDist), ms: this.currentMs });
+      return;
+    }
+    this.debug?.("tentativa parcial guardada", { dist: Math.round(this.lapDist), ms: this.currentMs });
     const n = this.lapNumber;
     this.laps.push({
       n,
@@ -798,6 +817,7 @@ export class LapTimer {
   // Fim de uma corrida do jogo (dados pararam e voltaram com o tempo a zero). Numa sprint (número
   // da volta sempre 0) o ponto onde os dados pararam é a chegada.
   finishRace(last) {
+    this.debug?.("fim de corrida", { tempo: last.currentLap });
     // Sprint conhecida e os dados pararam longe da chegada: não chegou ao fim (tentativa parcial).
     if (this.finish && Math.hypot(last.x - this.finish.x, last.z - this.finish.z) > RESTART_RADIUS_M / 2) {
       this.abortRun();

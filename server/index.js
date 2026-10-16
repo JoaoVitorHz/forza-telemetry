@@ -1,4 +1,7 @@
 import dgram from "node:dgram";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { WebSocketServer } from "ws";
 import { parsePacket } from "./parser.js";
 import { LapTimer, START_RADIUS } from "./lapTimer.js";
@@ -21,6 +24,16 @@ timer.historyLaps = (trackId, carKey) =>
   readLaps(trackId)
     .filter((lap) => String(lap.car?.ordinal ?? "?") === carKey && lap.samples && lap.gateTimes && !lap.invalid)
     .map(({ ms, samples, gateTimes, partial }) => ({ ms: partial ? null : ms, samples, gateTimes }));
+// Diagnóstico dos eventos de corrida (pausa, reinício, chegada) em data/race-debug.log.
+const DEBUG_LOG = path.join(path.dirname(fileURLToPath(import.meta.url)), "..", "data", "race-debug.log");
+timer.debug = (event, data) => {
+  try {
+    fs.appendFileSync(DEBUG_LOG, `${new Date().toISOString()} ${event} ${JSON.stringify(data)}
+`);
+  } catch {
+    // o diagnóstico nunca pode parar o cronómetro
+  }
+};
 const applySettings = () => {
   timer.miniCount = settings.values.miniSectors ? settings.values.miniSectorCount : 0;
   timer.autoStart = settings.values.autoStart;
