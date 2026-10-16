@@ -231,9 +231,6 @@ export default function App() {
           <Row label="VOLTA IDEAL" value={fmtTime(timer?.idealMs)} className="ideal" />
 
           <Sectors sectors={timer?.sectors} />
-          {settings.lapAnalysis && timer?.lastAnalysis && (
-            <LapAnalysis title={`ONDE PERDESTE TEMPO • VOLTA ${timer.lastAnalysis.n}`} items={timer.lastAnalysis.items} />
-          )}
 
           {t && settings.showPedals && (
             <div className="live">
@@ -274,17 +271,6 @@ export default function App() {
             </button>
           </div>
 
-          {settings.showLapHistory && <LapHistory laps={timer?.laps} selected={selectedLap} onSelect={selectLap} />}
-          {timer?.laps?.length > 0 && (
-            <ExportPanel
-              source="session"
-              carKey={timer.car}
-              carName={carLabel(String(timer.car), carNames, t && { class: t.carClass, pi: t.carPI })}
-              settings={settings}
-              lapsExport={lapsExport}
-              send={send}
-            />
-          )}
         </section>
 
         <section className="panel">
@@ -311,6 +297,24 @@ export default function App() {
           {viewedLap && settings.compareChart && <CompareChart lap={viewedLap} label={`Volta ${viewedLap.n}`} />}
           {lapLosses && <LapAnalysis title={`ONDE PERDESTE TEMPO • VOLTA ${viewedLap.n}`} items={lapLosses} />}
           {settings.showCorners && <CornerTable analysis={lapAnalysis} selected={corner} onSelect={setCorner} />}
+        </section>
+
+        {/* Coluna da direita (em ecrãs largos; nos outros fica por baixo) */}
+        <section className="panel side">
+          {settings.lapAnalysis && timer?.lastAnalysis && (
+            <LapAnalysis title={`ONDE PERDESTE TEMPO • VOLTA ${timer.lastAnalysis.n}`} items={timer.lastAnalysis.items} />
+          )}
+          {settings.showLapHistory && <LapHistory laps={timer?.laps} selected={selectedLap} onSelect={selectLap} />}
+          {timer?.laps?.length > 0 && (
+            <ExportPanel
+              source="session"
+              carKey={timer.car}
+              carName={carLabel(String(timer.car), carNames, t && { class: t.carClass, pi: t.carPI })}
+              settings={settings}
+              lapsExport={lapsExport}
+              send={send}
+            />
+          )}
           <Tracks tracks={tracks} timer={timer} settings={settings} send={send} />
         </section>
       </div>

@@ -83,17 +83,41 @@ body {
 }
 
 /* ───────── Estrutura ───────── */
+/* Colunas: tempos | mapa e análise | voltas, exportar e pistas. Em ecrãs médios a terceira
+   coluna passa para baixo (largura toda); em ecrãs pequenos fica tudo numa coluna. */
 .app {
   display: grid;
-  grid-template-columns: minmax(320px, 400px) 1fr;
+  grid-template-columns: minmax(320px, 400px) minmax(0, 1fr);
+  align-items: start;
   gap: 14px;
   padding: 14px 16px;
-  max-width: 1200px;
+}
+.app > .side {
+  grid-column: 1 / -1;
+}
+@media (min-width: 1500px) {
+  .app {
+    grid-template-columns: minmax(320px, 400px) minmax(0, 1fr) minmax(340px, 460px);
+  }
+  .app > .side {
+    grid-column: auto;
+  }
 }
 @media (max-width: 760px) {
   .app {
     grid-template-columns: 1fr;
   }
+}
+.side > :first-child {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: none;
+}
+.side:empty {
+  display: none;
+}
+.side .history-scroll {
+  max-height: 420px;
 }
 
 .panel {

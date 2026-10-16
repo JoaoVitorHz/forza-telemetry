@@ -127,18 +127,6 @@ export default function TrackView({ view, savedLap, activeTrackId, liveCar, carN
           )}
         </div>
 
-        {laps.length > 0 && <LapHistory laps={laps} selected={selected} onSelect={select} />}
-        {laps.length > 0 && (
-          <ExportPanel
-            source="track"
-            trackId={view.id}
-            carKey={car.key}
-            carName={carLabel(car.key, carNames, car.info)}
-            settings={settings}
-            lapsExport={lapsExport}
-            send={send}
-          />
-        )}
       </section>
 
       <section className="panel">
@@ -169,6 +157,21 @@ export default function TrackView({ view, savedLap, activeTrackId, liveCar, carN
         {shownLap && settings.compareChart && <CompareChart lap={shownLap} label={`Volta ${shownN}`} />}
         {lapLosses && <LapAnalysis title={`ONDE PERDESTE TEMPO • VOLTA ${shownN}`} items={lapLosses} />}
         {settings.showCorners && <CornerTable analysis={lapAnalysis} selected={corner} onSelect={setCorner} />}
+      </section>
+
+      <section className="panel side">
+        {laps.length > 0 && <LapHistory laps={laps} selected={selected} onSelect={select} />}
+        {laps.length > 0 && (
+          <ExportPanel
+            source="track"
+            trackId={view.id}
+            carKey={car.key}
+            carName={carLabel(car.key, carNames, car.info)}
+            settings={settings}
+            lapsExport={lapsExport}
+            send={send}
+          />
+        )}
       </section>
     </div>
   );
