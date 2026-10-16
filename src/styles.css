@@ -97,7 +97,8 @@ body {
 }
 @media (min-width: 1500px) {
   .app {
-    grid-template-columns: minmax(320px, 400px) minmax(0, 1fr) minmax(340px, 460px);
+    /* mapa ~55% e coluna da direita ~45% do espaço que sobra depois dos tempos */
+    grid-template-columns: minmax(320px, 400px) minmax(0, 1.2fr) minmax(400px, 1fr);
   }
   .app > .side {
     grid-column: auto;
