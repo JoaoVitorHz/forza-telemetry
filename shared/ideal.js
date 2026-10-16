@@ -25,26 +25,34 @@ const distAtTime = (samples, ms) => lookup(samples, ms, 1, 0);
 const timeAtDist = (samples, d) => lookup(samples, d, 0, 1);
 
 // laps: [{ ms, samples, gateTimes }], gateFracs: posição de cada linha em fração da volta.
-// Só contam voltas que passaram em todas as linhas. Devolve { ms, samples } ou null.
+// Também contam tentativas parciais (ms = null, só as linhas por onde passaram): cada troço usa as
+// voltas que o fizeram. Devolve { ms, samples } ou null se algum troço não tiver nenhuma volta.
 export function buildIdeal(laps, gateFracs) {
   if (!gateFracs?.length) return null;
   const pool = laps
-    .filter((l) => l?.samples?.length > 2 && l.gateTimes?.length === gateFracs.length && l.ms > 0)
-    .map((l) => ({ ...l, bounds: [0, ...l.gateTimes, l.ms] }));
+    .filter((l) => l?.samples?.length > 2 && l.gateTimes?.length > 0 && l.gateTimes.length <= gateFracs.length)
+    .map((l) => {
+      const finished = l.gateTimes.length === gateFracs.length && l.ms > 0;
+      return { ...l, bounds: [0, ...l.gateTimes, ...(finished ? [l.ms] : [])] };
+    });
   if (!pool.length) return null;
 
   // Comprimento típico (mediana) para pôr as distâncias da volta ideal na mesma escala do delta.
-  const lengths = pool.map((l) => l.samples[l.samples.length - 1][0]).sort((a, b) => a - b);
-  const length = lengths[Math.floor(lengths.length / 2)];
+  // (só voltas completas; as parciais são mais curtas)
+  const finished = pool.filter((l) => l.bounds.length === gateFracs.length + 2);
+  const lengths = (finished.length ? finished : pool).map((l) => l.samples[l.samples.length - 1][0]).sort((a, b) => a - b);
+  const length = finished.length ? lengths[Math.floor(lengths.length / 2)] : lengths[lengths.length - 1];
   const fracs = [0, ...gateFracs, 1];
 
   const samples = [[0, 0]];
   let total = 0;
   for (let k = 0; k < fracs.length - 1; k++) {
-    let best = pool[0];
+    let best = null;
     for (const l of pool) {
-      if (l.bounds[k + 1] - l.bounds[k] < best.bounds[k + 1] - best.bounds[k]) best = l;
+      if (l.bounds[k + 1] == null) continue;
+      if (!best || l.bounds[k + 1] - l.bounds[k] < best.bounds[k + 1] - best.bounds[k]) best = l;
     }
+    if (!best) return null; // nenhuma volta fez este troço
     const [t0, t1] = [best.bounds[k], best.bounds[k + 1]];
     const [d0, d1] = [distAtTime(best.samples, t0), distAtTime(best.samples, t1)];
     const [D0, D1] = [fracs[k] * length, fracs[k + 1] * length];

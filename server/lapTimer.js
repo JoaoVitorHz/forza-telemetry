@@ -33,6 +33,8 @@ const LOOP_MATCH_M = 10; // distância para considerar que voltou a passar no me
 const ABANDON_FACTOR = 3; // volta automática com mais do triplo da primeira = saiu do circuito
 const RACE_END_MS = 3000; // tempo de volta do jogo a 0 durante isto = a corrida acabou
 const LAP_DROP_MS = 1500; // número da volta mais baixo durante isto = corrida recomeçada
+const RESTART_RADIUS_M = 150; // dados voltam com o carro a menos disto da partida = tentativa reiniciada
+const PARTIAL_MIN_MS = 3000; // tentativas reiniciadas mais curtas que isto não são guardadas
 const REWIND_MATCH_M = 8; // depois de retroceder o carro reaparece num ponto já percorrido (a menos disto)
 const REWIND_MIN_BACK_M = 5; // recuos menores contam como pausa (o carro ficou no mesmo sítio)
 
@@ -125,7 +127,7 @@ export class LapTimer {
     if (this.track && this.historyLaps) pool.push(...this.historyLaps(this.track.id, this.carKey));
     for (const lap of this.laps ?? []) {
       const detail = lap.car === this.carKey && this.lapPaths?.get(lap.n);
-      if (detail) pool.push({ ms: lap.ms, samples: detail.samples, gateTimes: detail.gateTimes });
+      if (detail?.gateTimes) pool.push({ ms: detail.complete ? lap.ms : null, samples: detail.samples, gateTimes: detail.gateTimes });
     }
     this.ideal = buildIdeal(pool, this.idealGates.map((g) => g.frac));
   }
@@ -336,7 +338,17 @@ export class LapTimer {
     if (this.raceSuspended) {
       const last = this.raceSuspended;
       this.raceSuspended = null;
-      if (t.currentLap === 0) this.finishRace(last);
+      if (t.currentLap === 0) {
+        // Reinício: o carro reaparece na partida (numa chegada fica longe dela).
+        const origin = this.path?.[0];
+        const backAtStart = origin && Math.hypot(t.x - origin.x, t.z - origin.z) < RESTART_RADIUS_M;
+        if (backAtStart) {
+          this.abortRun();
+          this.leaveRace();
+        } else {
+          this.finishRace(last);
+        }
+      }
     }
 
     // Destracionar: rodas de tração a patinar com o pé no acelerador. Só conta se durar
@@ -450,7 +462,14 @@ export class LapTimer {
 
     if (!this.armed && d > ARM_DISTANCE) this.armed = true;
     if (this.finish) {
-      if (this.armed && finishF != null && this.currentMs > MIN_LAP_MS) this.completeLap(Math.round(prevMs + finishF * dt), t);
+      if (this.armed && finishF != null && this.currentMs > MIN_LAP_MS) {
+        this.completeLap(Math.round(prevMs + finishF * dt), t);
+      } else if (this.armed && crossF != null) {
+        // Voltou a passar na partida sem chegar ao fim: tentativa parcial e começa outra.
+        this.abortRun();
+        this.beginLap();
+        this.currentMs = Math.round((1 - crossF) * dt);
+      }
       return;
     }
     if (this.armed && crossF != null && this.currentMs > MIN_LAP_MS) {
@@ -482,7 +501,8 @@ export class LapTimer {
   enterRace(t) {
     this.gameRace = true;
     this.gameLap = t.lapNumber;
-    this.resetLaps();
+    this.lapDropSince = null;
+    // As voltas anteriores da sessão ficam (cada reinício de uma sprint é uma corrida nova).
     this.beginLap(t);
     // Apanhou a corrida a meio de uma volta (ex.: programa reiniciado): o tempo vem do jogo, mas a
     // distância não começou na meta, por isso esta volta não tem delta nem é gravada.
@@ -490,6 +510,7 @@ export class LapTimer {
   }
 
   leaveRace() {
+    this.abortRun(); // corrida abandonada a meio: guarda a tentativa como parcial
     this.gameRace = false;
     this.running = false; // volta à deteção pela partida (se houver uma)
     this.prevStartDist = Infinity;
@@ -672,13 +693,15 @@ export class LapTimer {
       impacts: this.impacts,
       invalid,
       lengthM: Math.round(lapLen),
+      gateTimes: invalid ? null : [...this.gateTimes],
     });
     const complete = this.idealGates && this.gateTimes.length === this.idealGates.length;
     this.lapPaths.set(this.lapNumber, {
       path: lapPath,
       splitIdx: this.splitIdx,
       samples: lapSamples,
-      gateTimes: complete && !invalid ? [...this.gateTimes] : null, // só voltas válidas que passaram em todas as linhas
+      gateTimes: invalid ? null : [...this.gateTimes], // passagens nas linhas da volta ideal (trechos)
+      complete: !!complete && !invalid, // passou em todas as linhas
     });
     if (this.laps.length > MAX_LAP_HISTORY) this.lapPaths.delete(this.laps.shift().n);
 
@@ -706,6 +729,39 @@ export class LapTimer {
     else this.beginLap(pos);
   }
 
+  // Tentativa interrompida (reiniciada/abandonada): guarda o que fez como volta "parcial" — tempo e
+  // trechos até onde chegou — para os mini-setores e a volta ideal. Não conta para recordes.
+  abortRun() {
+    if (!this.running) return;
+    this.running = false;
+    if (this.partial || this.lapDist < ARM_DISTANCE || this.currentMs < PARTIAL_MIN_MS) return;
+    const n = this.lapNumber;
+    this.laps.push({
+      n,
+      ms: this.currentMs,
+      color: "partial",
+      splits: this.splits,
+      car: this.carKey,
+      spins: this.spinEvents,
+      impacts: this.impacts,
+      partial: true,
+      lengthM: Math.round(this.lapDist),
+      gateTimes: [...this.gateTimes],
+    });
+    this.lapPaths.set(n, {
+      path: this.path.map((p) => ({ x: round1(p.x), z: round1(p.z) })),
+      splitIdx: this.splitIdx,
+      samples: downsample(this.samples),
+      gateTimes: [...this.gateTimes],
+      complete: false,
+    });
+    if (this.laps.length > MAX_LAP_HISTORY) this.lapPaths.delete(this.laps.shift().n);
+    this.lastSplits = this.splits;
+    console.log(`[volta] tentativa interrompida aos ${Math.round(this.lapDist)} m: guardada como parcial`);
+    this.rebuildIdeal();
+    this.onLapComplete?.(this.getLap(n));
+  }
+
   // Sprint terminada: fica à espera de passar outra vez na partida.
   endRun() {
     this.running = false;
@@ -718,6 +774,12 @@ export class LapTimer {
   // Fim de uma corrida do jogo (dados pararam e voltaram com o tempo a zero). Numa sprint (número
   // da volta sempre 0) o ponto onde os dados pararam é a chegada.
   finishRace(last) {
+    // Sprint conhecida e os dados pararam longe da chegada: não chegou ao fim (tentativa parcial).
+    if (this.finish && Math.hypot(last.x - this.finish.x, last.z - this.finish.z) > RESTART_RADIUS_M / 2) {
+      this.abortRun();
+      this.leaveRace();
+      return;
+    }
     const ms = Math.round(last.currentLap * 1000);
     if (this.running && ms > MIN_LAP_MS) {
       if (last.lapNumber === 0 && this.gameLap === 0 && !this.finish) {
@@ -758,7 +820,7 @@ export class LapTimer {
   typicalLength(currentLen) {
     const lengths = [currentLen];
     for (const lap of (this.laps ?? []).slice(-10)) {
-      if (lap.car === this.carKey && !lap.invalid && lap.lengthM) lengths.push(lap.lengthM);
+      if (lap.car === this.carKey && !lap.invalid && !lap.partial && lap.lengthM) lengths.push(lap.lengthM);
     }
     // O recorde só entra se veio de antes desta sessão (senão a mesma volta contava duas vezes).
     const refFromSession = this.ref && (this.laps ?? []).some((l) => l.car === this.carKey && l.ms === this.ref.ms);
@@ -778,7 +840,7 @@ export class LapTimer {
     if (!typical || !refLen || Math.abs(refLen - typical) / typical <= LENGTH_TOLERANCE) return false;
     let best = null;
     for (const lap of this.laps) {
-      if (lap.car !== this.carKey || lap.invalid || (best && lap.ms >= best.ms)) continue;
+      if (lap.car !== this.carKey || lap.invalid || lap.partial || (best && lap.ms >= best.ms)) continue;
       if (Math.abs(lap.lengthM - typical) / typical > LENGTH_TOLERANCE) continue;
       const detail = this.lapPaths.get(lap.n);
       if (detail) best = { ms: lap.ms, samples: detail.samples, path: detail.path };
@@ -786,12 +848,12 @@ export class LapTimer {
     if (!best) return false;
     // As voltas da sessão fora do normal (a que era referência incluída) passam a inválidas.
     for (const lap of this.laps) {
-      if (lap.car === this.carKey && Math.abs(lap.lengthM - typical) / typical > LENGTH_TOLERANCE) {
+      if (lap.car === this.carKey && !lap.partial && Math.abs(lap.lengthM - typical) / typical > LENGTH_TOLERANCE) {
         lap.invalid = true;
         lap.color = "invalid";
       }
     }
-    const valid = this.laps.filter((l) => l.car === this.carKey && !l.invalid).map((l) => l.ms);
+    const valid = this.laps.filter((l) => l.car === this.carKey && !l.invalid && !l.partial).map((l) => l.ms);
     this.sessionBestMs = valid.length ? Math.min(...valid) : null;
     console.log(`[volta] referência fora do normal (${Math.round(refLen)} m) trocada pela volta de ${best.ms} ms`);
     this.ref = best;

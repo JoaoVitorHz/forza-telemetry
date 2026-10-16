@@ -9,6 +9,8 @@ import TrackView from "./TrackView.jsx";
 import Settings from "./Settings.jsx";
 import CompareChart from "./CompareChart.jsx";
 import LapColorToggle from "./LapColorToggle.jsx";
+import SegmentStrip from "./SegmentStrip.jsx";
+import { segmentColors } from "../shared/segments.js";
 import LapAnalysis from "./LapAnalysis.jsx";
 import CornerTable, { cornerMarks } from "./CornerTable.jsx";
 import { analyzeLap, spinRanges, topLosses } from "../shared/analysis.js";
@@ -54,7 +56,7 @@ export default function App() {
   const viewedLap = selectedLap != null && lapDetail?.n === selectedLap ? lapDetail : null;
   const [lapColorMode, setLapColorMode] = useState("sectors");
   const lapAnalysis = useMemo(
-    () => (viewedLap ? analyzeLap(viewedLap.samples, viewedLap.refSamples, map?.corners, settings.tractionSensitivity) : null),
+    () => (viewedLap && !viewedLap.partial ? analyzeLap(viewedLap.samples, viewedLap.refSamples, map?.corners, settings.tractionSensitivity) : null),
     [viewedLap, map?.corners, settings.tractionSensitivity],
   );
   // Trechos onde destracionou nesta volta (marcados a vermelho no mapa).
@@ -73,6 +75,12 @@ export default function App() {
         : null,
     [settings.miniSectors, settings.miniSectorCount, viewedLap],
   );
+  // Trechos fixos na pista (também nas tentativas parciais): cores contra as outras voltas do carro.
+  const lapSegments = useMemo(
+    () => (viewedLap?.gateTimes ? segmentColors(viewedLap, (timer?.laps ?? []).filter((l) => l.car === viewedLap.car)) : null),
+    [viewedLap, timer?.laps],
+  );
+  const lapPieces = lapSegments?.colors ?? lapMini;
   const selectLap = (n) => {
     if (n === selectedLap) return setSelectedLap(null);
     setSelectedLap(n);
@@ -282,7 +290,7 @@ export default function App() {
         <section className="panel">
           <div className="map-header">
             <h2>{viewedLap ? `MAPA • VOLTA ${viewedLap.n} • ${fmtTime(viewedLap.ms)}` : "MAPA"}</h2>
-            {lapMini && <LapColorToggle mode={lapColorMode} onChange={setLapColorMode} />}
+            {lapPieces && <LapColorToggle mode={lapColorMode} onChange={setLapColorMode} />}
             {selectedLap != null && <button onClick={() => setSelectedLap(null)}>Ao vivo</button>}
           </div>
           <TrackMap
@@ -291,7 +299,7 @@ export default function App() {
             lapNumber={timer?.lapNumber}
             lap={viewedLap}
             ghost={settings.ghost ? timer?.ghost : null}
-            miniColors={viewedLap ? lapMini : timer?.miniSectors}
+            miniColors={viewedLap ? lapPieces : timer?.miniSectors}
             lapColorMode={lapColorMode}
             showCorners={settings.showCorners}
             selectedCorner={corner}
@@ -299,6 +307,7 @@ export default function App() {
             focus={cornerFocus}
             spinRanges={lapSpins}
           />
+          {viewedLap && <SegmentStrip segments={lapSegments} label={`Volta ${viewedLap.n}${viewedLap.partial ? " (parcial)" : ""}`} />}
           {viewedLap && settings.compareChart && <CompareChart lap={viewedLap} label={`Volta ${viewedLap.n}`} />}
           {lapLosses && <LapAnalysis title={`ONDE PERDESTE TEMPO • VOLTA ${viewedLap.n}`} items={lapLosses} />}
           {settings.showCorners && <CornerTable analysis={lapAnalysis} selected={corner} onSelect={setCorner} />}

@@ -982,3 +982,45 @@ body.overlay-body {
     transition: none !important;
   }
 }
+
+/* ───────── Trechos (mini-setores fixos) e tentativas parciais ───────── */
+.segments {
+  margin-top: 12px;
+}
+.segment-strip {
+  display: grid;
+  grid-template-columns: repeat(25, 1fr);
+  gap: 2px;
+  margin-bottom: 6px;
+}
+.segment {
+  height: 14px;
+  background: var(--line);
+}
+.segment.purple {
+  background: var(--purple);
+}
+.segment.green {
+  background: var(--green);
+}
+.segment.yellow {
+  background: var(--yellow);
+}
+.segment.none {
+  background: var(--line-soft);
+}
+.history td.partial {
+  color: var(--muted);
+  font-style: italic;
+}
+.partial-tag {
+  margin-left: 6px;
+  font-size: 10px;
+  font-weight: 700;
+  font-style: normal;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-2);
+  border: 1px solid var(--line);
+  padding: 0 4px;
+}

@@ -93,6 +93,7 @@ export function buildReport(data, { carName, spinThreshold, stepM, includeTeleme
   line("- Referência = recorde deste carro nesta pista. Pares \"a/b\" = volta/referência.");
   line("- Voltas \"(inválida)\": distância muito diferente do normal (atalho, desvio ou erro de contagem);");
   line("  aparecem na tabela mas ficam fora da análise das curvas e da telemetria.");
+  line("- Voltas \"(parcial)\": tentativas reiniciadas antes do fim; o tempo é até onde chegaram.");
   line("- a_fundo / freando / sem_pedal: % do tempo da volta com acelerador ≥ 95%, freio ≥ 10%, ou nenhum dos dois.");
   line("- Curvas: v_entrada = velocidade quando começa a frear (ou a máxima antes da curva, se não frear);");
   line("  vmin = mínima na curva; v_saida = 100 m depois do vértice (km/h).");
@@ -134,7 +135,7 @@ export function buildReport(data, { carName, spinThreshold, stepM, includeTeleme
     const spins = samples ? spinRanges(samples, spinThreshold) : [];
     line(
       [
-        lap.label + (lap.invalid ? " (inválida)" : ""),
+        lap.label + (lap.invalid ? " (inválida)" : lap.partial ? " (parcial)" : ""),
         lap.at ? new Date(lap.at).toLocaleString("pt-BR") : "-",
         sec(lap.ms),
         signedSec(ref ? lap.ms - ref.ms : null),
@@ -145,7 +146,7 @@ export function buildReport(data, { carName, spinThreshold, stepM, includeTeleme
         impactsText(lap.impacts, corners, len),
       ].join(";"),
     );
-    const usable = refSamples && !lap.invalid;
+    const usable = refSamples && !lap.invalid && !lap.partial;
     return { lap, samples, len, analysis: usable ? analyzeLap(samples, refSamples, corners, spinThreshold) : null };
   });
   line("```");
@@ -248,7 +249,7 @@ export function buildReport(data, { carName, spinThreshold, stepM, includeTeleme
     line();
     block(`Referência (recorde ${fmtTime(ref?.ms)})`, refSamples, false);
     for (const { lap, samples } of analyses) {
-      if (!lap.invalid) block(`${lap.label} — ${fmtTime(lap.ms)}`, samples, !!refSamples);
+      if (!lap.invalid && !lap.partial) block(`${lap.label} — ${fmtTime(lap.ms)}`, samples, !!refSamples);
     }
   }
 

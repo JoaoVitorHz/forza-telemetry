@@ -19,8 +19,8 @@ const settings = new SettingsStore();
 // Voltas guardadas de um carro numa pista (para a volta ideal).
 timer.historyLaps = (trackId, carKey) =>
   readLaps(trackId)
-    .filter((lap) => String(lap.car?.ordinal ?? "?") === carKey && lap.samples && lap.gateTimes)
-    .map(({ ms, samples, gateTimes }) => ({ ms, samples, gateTimes }));
+    .filter((lap) => String(lap.car?.ordinal ?? "?") === carKey && lap.samples && lap.gateTimes && !lap.invalid)
+    .map(({ ms, samples, gateTimes, partial }) => ({ ms: partial ? null : ms, samples, gateTimes }));
 const applySettings = () => {
   timer.miniCount = settings.values.miniSectors ? settings.values.miniSectorCount : 0;
   timer.autoStart = settings.values.autoStart;
@@ -61,6 +61,7 @@ function lapRecord(lap) {
     spins: lap.spins, // vezes que destracionou
     impacts: lap.impacts?.length ? lap.impacts : undefined, // batidas (só para o relatório)
     invalid: lap.invalid || undefined, // atalho/desvio: não conta para recordes
+    partial: lap.partial || undefined, // tentativa interrompida: só para trechos/volta ideal
     splitIdx: lap.splitIdx,
     path: lap.path,
     samples: lap.samples, // para o delta, se esta volta voltar a ser recorde
@@ -81,7 +82,7 @@ function exportData({ source, trackId, carKey, count }) {
     const laps = take(timer.laps.filter((l) => l.car === car))
       .map((l) => timer.getLap(l.n))
       .filter(Boolean)
-      .map((l) => ({ label: `Volta ${l.n}`, ms: l.ms, splits: l.splits, spins: l.spins, samples: l.samples, color: l.color, invalid: l.invalid, impacts: l.impacts }));
+      .map((l) => ({ label: `Volta ${l.n}`, ms: l.ms, splits: l.splits, spins: l.spins, samples: l.samples, color: l.color, invalid: l.invalid, partial: l.partial, impacts: l.impacts }));
     const record = timer.records[car] ?? (car === timer.carKey ? { best: timer.ref, bestSectors: timer.bestSectors } : null);
     return {
       trackName: timer.track?.name ?? "Pista não guardada",
@@ -108,6 +109,7 @@ function exportData({ source, trackId, carKey, count }) {
     samples: l.samples,
     color: l.color,
     invalid: l.invalid,
+    partial: l.partial,
     impacts: l.impacts,
   }));
   const record = track.records?.[carKey];
@@ -127,7 +129,7 @@ function exportData({ source, trackId, carKey, count }) {
 function trackView(id) {
   const track = store.get(id);
   if (!track) return null;
-  const laps = readLaps(id).map(({ path, splitIdx, samples, gateTimes, ...lap }) => lap);
+  const laps = readLaps(id).map(({ path, splitIdx, samples, ...lap }) => lap);
 
   // Carros com recorde ou com voltas nesta pista.
   const byCar = {};
