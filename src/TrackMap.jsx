@@ -133,6 +133,12 @@ export default function TrackMap({
       ctx.lineJoin = ctx.lineCap = "round";
       ctx.stroke();
     };
+    // Rótulo ao lado de um ponto; se não couber à direita (borda do mapa), vai para a esquerda.
+    const sideLabel = (text, x, y, gap) => {
+      const fits = x + gap + ctx.measureText(text).width <= W - 4;
+      ctx.textAlign = fits ? "left" : "right";
+      ctx.fillText(text, fits ? x + gap : x - gap, y);
+    };
     const dot = (p, color, r) => {
       ctx.beginPath();
       ctx.arc(...proj(p), r, 0, Math.PI * 2);
@@ -167,8 +173,7 @@ export default function TrackMap({
         dot(c, active ? "#4da3ff" : "#777", active ? 5 : 4);
         ctx.fillStyle = active ? "#fff" : "#999";
         ctx.font = `${active ? "bold " : ""}11px system-ui`;
-        ctx.textAlign = "left";
-        ctx.fillText(`C${n}`, x + 7, y - 6);
+        sideLabel(`C${n}`, x, y - 6, 7);
       });
     }
     // Marcas da curva ampliada: anel escuro + cor da volta, com o rótulo por cima.
@@ -177,7 +182,7 @@ export default function TrackMap({
       dot(m, m.color, 5);
       const [x, y] = proj(m);
       ctx.fillStyle = "#eee";
-      ctx.font = "bold 12px system-ui";
+      ctx.font = "700 12px \"Titillium Web\", system-ui";
       ctx.textAlign = "center";
       ctx.fillText(m.label, x, y - 10);
     }
@@ -185,26 +190,23 @@ export default function TrackMap({
       dot(s, "#f39c12", 5);
       const [x, y] = proj(s);
       ctx.fillStyle = "#f39c12";
-      ctx.font = "bold 12px system-ui";
-      ctx.textAlign = "left";
-      ctx.fillText(`S${i + 1}`, x + 8, y + 4);
+      ctx.font = "700 12px \"Titillium Web\", system-ui";
+      sideLabel(`S${i + 1}`, x, y + 4, 8);
     });
     if (map?.finish) {
       dot(map.finish, "#fff", 7);
       dot(map.finish, "#e74c3c", 5);
       const [fx, fy] = proj(map.finish);
       ctx.fillStyle = "#ff6b5c";
-      ctx.font = "bold 13px system-ui";
-      ctx.textAlign = "left";
-      ctx.fillText("CHEGADA", fx + 10, fy + 4);
+      ctx.font = "700 13px \"Titillium Web\", system-ui";
+      sideLabel("CHEGADA", fx, fy + 4, 10);
     }
     if (map?.start) {
       dot(map.start, "#2ecc71", 7);
       const [sx, sy] = proj(map.start);
       ctx.fillStyle = "#2ecc71";
-      ctx.font = "bold 13px system-ui";
-      ctx.textAlign = "left";
-      ctx.fillText("START", sx + 10, sy + 4);
+      ctx.font = "700 13px \"Titillium Web\", system-ui";
+      sideLabel("START", sx, sy + 4, 10);
     }
     if (ghost && !lap) {
       // Fantasma do recorde: ponto roxo com anel, e a distância até ele.
@@ -212,9 +214,8 @@ export default function TrackMap({
       dot(ghost, "#b57bff", 6);
       const [gx, gy] = proj(ghost);
       ctx.fillStyle = "#b57bff";
-      ctx.font = "bold 12px system-ui";
-      ctx.textAlign = "left";
-      ctx.fillText(`REC ${ghost.gapM > 0 ? "+" : ""}${ghost.gapM} m`, gx + 10, gy - 8);
+      ctx.font = "700 12px \"Titillium Web\", system-ui";
+      sideLabel(`REC ${ghost.gapM > 0 ? "+" : ""}${ghost.gapM} m`, gx, gy - 8, 10);
     }
     if (pos && !lap) dot(pos, "#fff", 6);
   }, [map, pos, lapNumber, lap, ghost, miniColors, lapColorMode, showCorners, selectedCorner, focus, spinRanges]);
