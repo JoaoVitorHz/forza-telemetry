@@ -7,6 +7,7 @@ import LapHistory from "./LapHistory.jsx";
 import ExportPanel from "./ExportPanel.jsx";
 import TrackView from "./TrackView.jsx";
 import Settings from "./Settings.jsx";
+import SessionsView from "./SessionsView.jsx";
 import CompareChart from "./CompareChart.jsx";
 import LapColorToggle from "./LapColorToggle.jsx";
 import SegmentStrip from "./SegmentStrip.jsx";
@@ -38,13 +39,15 @@ function Bar({ value, color }) {
 }
 
 export default function App() {
-  const { state, map, tracks, lapDetail, trackView, savedLap, carNames, settings, lapsExport, online, send } = useTelemetry(WS_URL);
+  const { state, map, tracks, lapDetail, trackView, savedLap, carNames, settings, lapsExport, sessions, sessionView, sessionLap, online, send } =
+    useTelemetry(WS_URL);
   const t = state?.telemetry;
   const timer = state?.timer;
 
   // Seletor no topo: null = ao vivo; id = ver uma pista guardada.
   const [view, setView] = useState(null);
   const [showSettings, setShowSettings] = useState(false);
+  const [showSessions, setShowSessions] = useState(false);
   const viewExists = view != null && tracks.some((tr) => tr.id === view);
   // Pede os dados da pista ao escolher e sempre que a lista muda (nova volta, novo recorde).
   useEffect(() => {
@@ -131,6 +134,7 @@ export default function App() {
           onChange={(e) => {
             setView(e.target.value || null);
             setShowSettings(false);
+            setShowSessions(false);
           }}
         >
           <option value="">Ao vivo</option>
@@ -142,11 +146,43 @@ export default function App() {
           ))}
         </select>
       </label>
-      <button className={showSettings ? "active" : ""} onClick={() => setShowSettings(!showSettings)}>
+      <button
+        className={showSessions ? "active" : ""}
+        onClick={() => {
+          setShowSessions(!showSessions);
+          setShowSettings(false);
+        }}
+      >
+        📁 Sessões
+      </button>
+      <button
+        className={showSettings ? "active" : ""}
+        onClick={() => {
+          setShowSettings(!showSettings);
+          setShowSessions(false);
+        }}
+      >
         ⚙ Configurações
       </button>
     </header>
   );
+
+  if (showSessions) {
+    return (
+      <>
+        {topbar}
+        <SessionsView
+          sessions={sessions}
+          sessionView={sessionView}
+          sessionLap={sessionLap}
+          carNames={carNames}
+          settings={settings}
+          lapsExport={lapsExport}
+          send={send}
+        />
+      </>
+    );
+  }
 
   if (showSettings) {
     return (

@@ -5,7 +5,8 @@ const BIG_KB = 80; // acima disto é melhor enviar o ficheiro do que colar no ch
 
 // "Exportar para análise": escolhe quantas voltas (últimas N ou todas), gera o relatório em texto
 // e permite copiá-lo ou descarregá-lo.
-export default function ExportPanel({ source, trackId, carKey, carName, settings, lapsExport, send }) {
+// query: campos extra do pedido (ex.: sessionId e trackName para sessões antigas).
+export default function ExportPanel({ source, trackId, carKey, carName, settings, lapsExport, send, query }) {
   const [count, setCount] = useState(10);
   const [all, setAll] = useState(false);
   const [includeTelemetry, setIncludeTelemetry] = useState(true);
@@ -31,7 +32,7 @@ export default function ExportPanel({ source, trackId, carKey, carName, settings
     pending.current = requestId;
     setReport({ loading: true });
     setCopied(false);
-    send({ type: "exportLaps", requestId, source, trackId, carKey, count: all ? 0 : count });
+    send({ type: "exportLaps", requestId, source, trackId, carKey, count: all ? 0 : count, ...query });
   };
 
   const copy = async () => {

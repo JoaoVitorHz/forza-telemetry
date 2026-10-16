@@ -8,6 +8,8 @@ import { LapTimer, START_RADIUS } from "./lapTimer.js";
 import { TrackStore } from "./trackStore.js";
 import { appendLap, deleteLaps, readLaps } from "./lapStore.js";
 import { CarStore } from "./carStore.js";
+import { SessionStore } from "./sessionStore.js";
+import { detectCornersFromPath } from "../shared/analysis.js";
 import { SettingsStore } from "./settingsStore.js";
 
 const UDP_PORT = Number(process.env.FORZA_PORT) || 8005;
@@ -18,6 +20,11 @@ const DETECT_RADIUS = START_RADIUS * 2; // carrega a pista antes de chegar à pa
 const timer = new LapTimer();
 const store = new TrackStore();
 const cars = new CarStore();
+const sessions = new SessionStore();
+if (!sessions.list().length) {
+  const n = sessions.importHistory(store.tracks.map((track) => ({ track, laps: readLaps(track.id) })));
+  if (n) console.log(`[sessões] ${n} volta(s) do histórico das pistas organizadas em ${sessions.list().length} sessão(ões)`);
+}
 const settings = new SettingsStore();
 // Voltas guardadas de um carro numa pista (para a volta ideal).
 timer.historyLaps = (trackId, carKey) =>
@@ -57,11 +64,34 @@ timer.onTrackUpdate = () => {
   broadcastTracks();
 };
 // Cada volta fechada numa pista guardada vai para o histórico dessa pista.
+// Todas as voltas (de qualquer pista) vão também para o histórico de sessões.
 timer.onLapComplete = (lap) => {
-  if (!timer.track || !lap) return;
-  appendLap(timer.track.id, lapRecord(lap));
+  if (!lap) return;
+  const record = lapRecord(lap);
+  sessions.append({ ...record, trackId: timer.track?.id ?? null, trackName: timer.track?.name ?? null });
+  broadcast({ type: "sessions", list: sessions.list() });
+  if (!timer.track) return;
+  appendLap(timer.track.id, record);
   broadcastTracks();
 };
+
+// Referência de uma volta de uma sessão antiga: recorde do carro na pista guardada ou, sem pista
+// guardada, a melhor volta completa da sessão na mesma pista com o mesmo carro.
+function sessionRef(laps, lap) {
+  const car = String(lap.car?.ordinal ?? "?");
+  const saved = lap.trackId && store.get(lap.trackId)?.records?.[car]?.best;
+  if (saved) return saved;
+  const same = laps.filter(
+    (l) => l.trackName === lap.trackName && String(l.car?.ordinal ?? "?") === car && !l.partial && !l.invalid && l.samples,
+  );
+  const best = same.sort((a, b) => a.ms - b.ms)[0];
+  return best ? { ms: best.ms, samples: best.samples, path: best.path } : null;
+}
+
+// Curvas para uma volta de sessão: as da pista guardada ou detetadas no traçado da referência.
+function sessionCorners(lap, ref) {
+  return (lap.trackId && store.get(lap.trackId)?.corners) || detectCornersFromPath(ref?.path ?? lap.path);
+}
 
 function lapRecord(lap) {
   return {
@@ -85,9 +115,27 @@ function lapRecord(lap) {
 // Dados de uma pista guardada para o seletor: mapa, recordes por carro e voltas (sem traçados).
 // Dados para o relatório "Exportar para análise": as últimas `count` voltas de um carro
 // (da sessão ou de uma pista guardada), a referência (recorde do carro) e as curvas.
-function exportData({ source, trackId, carKey, count }) {
+function exportData({ source, trackId, carKey, count, sessionId, trackName }) {
   const take = (list) => (count > 0 ? list.slice(-count) : list);
   const sectorsSum = (b) => (b?.every((ms) => ms != null) ? b[0] + b[1] + b[2] : null);
+
+  if (source === "archive") {
+    const all = sessions.read(sessionId);
+    const laps = all.filter((l) => (l.trackName ?? null) === (trackName ?? null) && String(l.car?.ordinal ?? "?") === carKey);
+    if (!laps.length) return null;
+    const ref = sessionRef(all, laps[0]);
+    return {
+      trackName: trackName ?? "Pista não guardada",
+      carKey,
+      carInfo: laps[laps.length - 1].car,
+      ref: ref ? { ms: ref.ms, samples: ref.samples } : null,
+      bestSectors: null,
+      possibleBestMs: null,
+      idealMs: null,
+      corners: sessionCorners(laps[0], ref),
+      laps: take(laps.map((l, i) => ({ ...l, label: `Volta ${i + 1}` }))),
+    };
+  }
   const liveIdeal = (id, car) => (timer.track?.id === id && timer.carKey === car ? timer.ideal?.ms ?? null : null);
 
   if (source === "session") {
@@ -290,6 +338,7 @@ wss.on("connection", (ws) => {
   send(ws, { type: "tracks", tracks: store.summary() });
   send(ws, { type: "cars", names: cars.names });
   send(ws, { type: "settings", values: settings.values });
+  send(ws, { type: "sessions", list: sessions.list() });
   ws.on("message", (raw) => {
     let msg;
     try {
@@ -329,7 +378,26 @@ wss.on("connection", (ws) => {
         send(ws, { type: "importResult", ok: false, error: err.message });
       }
     } else if (msg.type === "getTrackView") send(ws, { type: "trackView", view: trackView(msg.id) });
-    else if (msg.type === "exportLaps") {
+    else if (msg.type === "listSessions") send(ws, { type: "sessions", list: sessions.list() });
+    else if (msg.type === "getSession") {
+      const laps = sessions.read(msg.id).map(({ path, samples, splitIdx, ...lap }) => lap);
+      send(ws, { type: "sessionView", id: msg.id, laps });
+    } else if (msg.type === "getSessionLap") {
+      const all = sessions.read(msg.id);
+      const lap = all.find((l) => l.id === msg.lapId);
+      const ref = lap && sessionRef(all, lap);
+      send(ws, {
+        type: "sessionLap",
+        lap: lap && {
+          ...lap,
+          refMs: ref?.ms ?? null,
+          refSamples: ref?.samples ?? null,
+          refPath: ref?.path ?? lap.path,
+          corners: sessionCorners(lap, ref),
+          track: lap.trackId ? (({ start, finish, sectors }) => ({ start, finish, sectors }))(store.get(lap.trackId) ?? {}) : null,
+        },
+      });
+    } else if (msg.type === "exportLaps") {
       send(ws, { type: "lapsExport", requestId: msg.requestId, data: exportData(msg) });
     } else if (msg.type === "getSavedLap") {
       const lap = readLaps(msg.trackId).find((l) => l.id === msg.lapId) ?? null;
