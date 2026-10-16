@@ -778,6 +778,41 @@ export class LapTimer {
     this.currentMs = Math.round(t.currentLap * 1000);
   }
 
+  // Servidor reiniciado a meio de uma sessão: repõe as voltas já gravadas na lista ao vivo.
+  restoreSession(saved) {
+    saved.forEach((lap, i) => {
+      const n = i + 1;
+      const car = String(lap.car?.ordinal ?? "?");
+      const lengthM = Math.round(lap.samples?.[lap.samples.length - 1]?.[0] ?? 0);
+      this.laps.push({
+        n,
+        ms: lap.ms,
+        color: lap.color,
+        splits: lap.splits ?? [],
+        car,
+        spins: lap.spins,
+        impacts: lap.impacts ?? [],
+        invalid: !!lap.invalid,
+        partial: !!lap.partial,
+        lengthM,
+        gateTimes: lap.gateTimes ?? null,
+      });
+      this.lapPaths.set(n, {
+        path: lap.path,
+        splitIdx: lap.splitIdx ?? [],
+        samples: lap.samples,
+        gateTimes: lap.gateTimes ?? null,
+        complete: !lap.partial && !lap.invalid && lap.gateTimes?.length === IDEAL_GATES,
+      });
+    });
+    while (this.laps.length > MAX_LAP_HISTORY) this.lapPaths.delete(this.laps.shift().n);
+    this.lapNumber = saved.length;
+    const last = this.laps[this.laps.length - 1];
+    this.lastLapMs = last?.partial ? null : last?.ms ?? null;
+    const valid = this.laps.filter((l) => l.car === last?.car && !l.invalid && !l.partial).map((l) => l.ms);
+    this.sessionBestMs = valid.length ? Math.min(...valid) : null;
+  }
+
   // Tentativa interrompida (reiniciada/abandonada): guarda o que fez como volta "parcial" — tempo e
   // trechos até onde chegou — para os mini-setores e a volta ideal. Não conta para recordes.
   abortRun() {

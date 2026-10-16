@@ -25,6 +25,12 @@ if (!sessions.list().length) {
   const n = sessions.importHistory(store.tracks.map((track) => ({ track, laps: readLaps(track.id) })));
   if (n) console.log(`[sessões] ${n} volta(s) do histórico das pistas organizadas em ${sessions.list().length} sessão(ões)`);
 }
+// Sessão ainda a decorrer (servidor reiniciado a meio): as voltas voltam à lista ao vivo.
+if (sessions.current) {
+  const saved = sessions.read(sessions.current);
+  timer.restoreSession(saved);
+  if (saved.length) console.log(`[sessões] ${saved.length} volta(s) da sessão atual repostas`);
+}
 const settings = new SettingsStore();
 // Voltas guardadas de um carro numa pista (para a volta ideal).
 timer.historyLaps = (trackId, carKey) =>
