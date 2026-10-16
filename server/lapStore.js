@@ -36,3 +36,14 @@ export function readLaps(trackId) {
 export function deleteLaps(trackId) {
   fs.rmSync(fileFor(trackId), { force: true });
 }
+
+// Apaga voltas (pelo id) do histórico de uma pista. Devolve quantas apagou.
+export function removeLaps(trackId, ids) {
+  const laps = readLaps(trackId);
+  const keep = laps.filter((lap) => !ids.has(lap.id));
+  if (keep.length === laps.length) return 0;
+  const tmp = `${fileFor(trackId)}.tmp`;
+  fs.writeFileSync(tmp, keep.map((lap) => JSON.stringify(lap) + "\n").join(""));
+  fs.renameSync(tmp, fileFor(trackId));
+  return laps.length - keep.length;
+}

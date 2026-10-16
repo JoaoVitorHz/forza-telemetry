@@ -54,6 +54,37 @@ export class TrackStore {
     this.save();
   }
 
+  // Depois de apagar voltas: se alguma era o recorde ou um melhor setor de um carro, recalcula o
+  // recorde e os melhores setores desse carro com as voltas que sobraram no histórico.
+  afterLapsRemoved(trackId, removed) {
+    const track = this.get(trackId);
+    if (!track) return false;
+    let changed = false;
+    for (const car of new Set(removed.map((l) => String(l.car?.ordinal ?? "?")))) {
+      const rec = track.records?.[car];
+      if (!rec) continue;
+      const gone = removed.filter((l) => String(l.car?.ordinal ?? "?") === car);
+      const wasRecord = gone.some((l) => l.ms === rec.best?.ms);
+      const wasSector = gone.some((l) => l.splits?.some((sp, i) => sp?.ms != null && sp.ms === rec.bestSectors?.[i]));
+      if (!wasRecord && !wasSector) continue;
+      const left = readLaps(trackId).filter((l) => String(l.car?.ordinal ?? "?") === car && !l.invalid && !l.partial);
+      const best = left.filter((l) => l.path).sort((a, b) => a.ms - b.ms)[0];
+      if (!best) {
+        delete track.records[car];
+      } else {
+        rec.best = { ms: best.ms, samples: best.samples ?? null, path: best.path };
+        rec.bestSectors = [0, 1, 2].map((i) => {
+          const times = left.map((l) => l.splits?.[i]?.ms).filter((ms) => ms != null);
+          return times.length ? Math.min(...times) : null;
+        });
+      }
+      changed = true;
+      console.log(`[pistas] "${track.name}": recorde do carro ${car} recalculado depois de apagar voltas`);
+    }
+    if (changed) this.save();
+    return changed;
+  }
+
   // Pista cuja partida está perto do carro e no mesmo sentido em que ele se move.
   findNear(t, prev, radius, excludeId) {
     return this.tracks.find(

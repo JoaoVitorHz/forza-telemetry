@@ -28,7 +28,7 @@ export default function SessionsView({ sessions, sessionView, sessionLap, carNam
   const [corner, setCorner] = useState(null);
 
   useEffect(() => {
-    if (!sessionId && sessions.length) setSessionId(sessions[0].id);
+    if ((!sessionId || !sessions.some((s) => s.id === sessionId)) && sessions.length) setSessionId(sessions[0].id);
   }, [sessions, sessionId]);
   useEffect(() => {
     if (sessionId) send({ type: "getSession", id: sessionId });
@@ -72,6 +72,17 @@ export default function SessionsView({ sessions, sessionView, sessionLap, carNam
     send({ type: "getSessionLap", id: sessionId, lapId: id });
   };
 
+  const deleteLap = (l) => {
+    if (!confirm(`Apagar a volta ${l.n} (${fmtTime(l.ms)})? Sai também do histórico da pista e, se era o recorde, o recorde é recalculado. Não dá para desfazer.`)) return;
+    if (l.id === lapId) setLapId(null);
+    send({ type: "deleteSessionLaps", sessionId, lapIds: [l.id] });
+  };
+  const deleteSession = (s) => {
+    if (!confirm(`Apagar a sessão de ${fmtDate(s.startedAt)} com ${s.laps} volta(s)? As voltas saem também do histórico das pistas. Não dá para desfazer.`)) return;
+    if (s.id === sessionId) setSessionId(null);
+    send({ type: "deleteSessionLaps", sessionId: s.id });
+  };
+
   const [trackName, carKey] = (activeGroup ?? "|").split("|");
   const groupLabel = (key) => {
     const [t, c] = key.split("|");
@@ -98,6 +109,9 @@ export default function SessionsView({ sessions, sessionView, sessionLap, carNam
                     </span>
                     <span className="session-tracks">{Object.keys(s.tracks).join(", ")}</span>
                     {bests[0] && <span className="session-best">Melhor: {fmtTime(bests[0][1])}</span>}
+                  </button>
+                  <button className="link session-delete" title="Apagar esta sessão" onClick={() => deleteSession(s)}>
+                    ✕
                   </button>
                 </li>
               );
@@ -154,7 +168,7 @@ export default function SessionsView({ sessions, sessionView, sessionLap, carNam
           </div>
         )}
         {groups.length === 1 && <p className="car">{groupLabel(activeGroup)}</p>}
-        {laps.length > 0 && <LapHistory laps={laps} selected={lapId} onSelect={selectLap} />}
+        {laps.length > 0 && <LapHistory laps={laps} selected={lapId} onSelect={selectLap} onDelete={deleteLap} />}
         {laps.length > 0 && (
           <ExportPanel
             source="archive"

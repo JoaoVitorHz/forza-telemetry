@@ -71,6 +71,41 @@ export class SessionStore {
     return laps.length;
   }
 
+  // Apaga voltas de uma sessão (ou a sessão inteira se ids = null). Devolve as voltas apagadas.
+  remove(id, ids = null) {
+    const laps = this.read(id);
+    const gone = ids ? laps.filter((l) => ids.has(l.id)) : laps;
+    const keep = ids ? laps.filter((l) => !ids.has(l.id)) : [];
+    if (!keep.length) {
+      fs.rmSync(fileFor(id), { force: true });
+      delete this.index[id];
+      if (this.current === id) this.current = null;
+    } else {
+      const tmp = `${fileFor(id)}.tmp`;
+      fs.writeFileSync(tmp, keep.map((l) => JSON.stringify(l) + "\n").join(""));
+      fs.renameSync(tmp, fileFor(id));
+      this.index[id] = this.summarize(this.index[id], keep);
+    }
+    this.saveIndex();
+    return gone;
+  }
+
+  // Resumo de uma sessão (para a lista) a partir das voltas que tem.
+  summarize(base, laps) {
+    const s = { ...base, laps: laps.length, tracks: {}, cars: {}, best: {} };
+    for (const lap of laps) {
+      const track = lap.trackName ?? "Pista não guardada";
+      const car = String(lap.car?.ordinal ?? "?");
+      s.tracks[track] = (s.tracks[track] ?? 0) + 1;
+      s.cars[car] = (s.cars[car] ?? 0) + 1;
+      if (!lap.partial && !lap.invalid && lap.ms > 0) {
+        const key = `${track}|${car}`;
+        if (s.best[key] == null || lap.ms < s.best[key]) s.best[key] = lap.ms;
+      }
+    }
+    return s;
+  }
+
   list() {
     return Object.values(this.index).sort((a, b) => b.startedAt.localeCompare(a.startedAt));
   }

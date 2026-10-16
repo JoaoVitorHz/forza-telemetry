@@ -3,7 +3,8 @@ import { fmtSector, fmtTime } from "./format.js";
 // Histórico das voltas da sessão (mais recente em cima), com as cores que cada
 // tempo teve no momento: roxo = melhor de sempre, verde = melhor da sessão, amarelo = mais lento.
 // Clicar numa volta mostra o traçado dela no mapa; clicar outra vez volta ao vivo.
-export default function LapHistory({ laps, selected, onSelect }) {
+// onDelete (opcional): mostra um ✕ em cada volta para a apagar.
+export default function LapHistory({ laps, selected, onSelect, onDelete }) {
   if (!laps?.length) return null;
   const showSpins = laps.some((l) => l.spins != null);
 
@@ -20,6 +21,7 @@ export default function LapHistory({ laps, selected, onSelect }) {
               <th>S2</th>
               <th>S3</th>
               {showSpins && <th title="Vezes que destracionou">Destr.</th>}
+              {onDelete && <th aria-label="Apagar" />}
             </tr>
           </thead>
           <tbody>
@@ -53,6 +55,20 @@ export default function LapHistory({ laps, selected, onSelect }) {
                   );
                 })}
                 {showSpins && <td className={lap.spins ? "slower" : "none"}>{lap.spins ?? "--"}</td>}
+                {onDelete && (
+                  <td className="row-action">
+                    <button
+                      className="link"
+                      title="Apagar esta volta"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onDelete(lap);
+                      }}
+                    >
+                      ✕
+                    </button>
+                  </td>
+                )}
               </tr>
               );
             })}

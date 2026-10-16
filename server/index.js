@@ -6,7 +6,7 @@ import { WebSocketServer } from "ws";
 import { parsePacket } from "./parser.js";
 import { LapTimer, START_RADIUS } from "./lapTimer.js";
 import { TrackStore } from "./trackStore.js";
-import { appendLap, deleteLaps, readLaps } from "./lapStore.js";
+import { appendLap, deleteLaps, readLaps, removeLaps } from "./lapStore.js";
 import { CarStore } from "./carStore.js";
 import { SessionStore } from "./sessionStore.js";
 import { detectCornersFromPath } from "../shared/analysis.js";
@@ -379,6 +379,24 @@ wss.on("connection", (ws) => {
       }
     } else if (msg.type === "getTrackView") send(ws, { type: "trackView", view: trackView(msg.id) });
     else if (msg.type === "listSessions") send(ws, { type: "sessions", list: sessions.list() });
+    else if (msg.type === "deleteSessionLaps" && msg.sessionId) {
+      // Apaga de verdade: da sessão e do histórico da pista (e recalcula o recorde se for preciso).
+      const gone = sessions.remove(msg.sessionId, msg.lapIds ? new Set(msg.lapIds) : null);
+      const byTrack = {};
+      for (const lap of gone) if (lap.trackId) (byTrack[lap.trackId] ??= []).push(lap);
+      for (const [trackId, laps] of Object.entries(byTrack)) {
+        removeLaps(trackId, new Set(laps.map((l) => l.id)));
+        if (store.afterLapsRemoved(trackId, laps) && timer.track?.id === trackId) {
+          timer.records = structuredClone(store.get(trackId).records ?? {});
+          timer.applyCar();
+          timer.mapVersion++;
+        }
+      }
+      console.log(`[sessões] ${gone.length} volta(s) apagada(s)`);
+      broadcast({ type: "sessions", list: sessions.list() });
+      broadcastTracks();
+      if (msg.lapIds) send(ws, { type: "sessionView", id: msg.sessionId, laps: sessions.read(msg.sessionId).map(({ path, samples, splitIdx, ...l }) => l) });
+    }
     else if (msg.type === "getSession") {
       const laps = sessions.read(msg.id).map(({ path, samples, splitIdx, ...lap }) => lap);
       send(ws, { type: "sessionView", id: msg.id, laps });

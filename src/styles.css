@@ -1092,3 +1092,24 @@ body.overlay-body {
   color: var(--purple);
   font-variant-numeric: tabular-nums;
 }
+
+.session-list li {
+  display: flex;
+  align-items: stretch;
+  gap: 2px;
+}
+.session-list li .session-item {
+  flex: 1;
+}
+.session-delete {
+  padding: 0 10px;
+  background: var(--panel-2);
+}
+.session-delete:hover:not(:disabled),
+.row-action button:hover:not(:disabled) {
+  color: var(--slow);
+}
+.history td.row-action {
+  width: 1%;
+  padding: 0 2px;
+}
